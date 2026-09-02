@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { Card } from '@/components/lib/ui/card';
-import type { TableSorting } from '@/components/transactions-table/columns';
+import { TABLE_COLUMN, type TableSorting } from '@/components/transactions-table/columns';
 import TransactionsTable from '@/components/transactions-table/transactions-table.vue';
 import { useTableColumns } from '@/components/transactions-table/use-table-columns';
 import { ROUTES_NAMES } from '@/routes';
@@ -27,7 +27,7 @@ const {
   isEverythingCategorized,
 } = run;
 
-const { visibleColumns } = useTableColumns();
+const { visibleColumns } = useTableColumns({ excludedColumns: [TABLE_COLUMN.balance] });
 
 const selectionScopeKey = computed(() => `${sorting.value.sortBy}:${sorting.value.order}`);
 

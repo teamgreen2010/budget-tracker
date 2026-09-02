@@ -100,6 +100,12 @@
         <span :class="['text-amount tabular-nums', amountColorClass]">{{ formattedAmount }}</span>
       </template>
 
+      <!-- Running account balance (account currency) -->
+      <template v-else-if="column.id === TABLE_COLUMN.balance">
+        <span v-if="formattedRunningBalance" class="text-amount tabular-nums">{{ formattedRunningBalance }}</span>
+        <span v-else class="text-muted-foreground">—</span>
+      </template>
+
       <!-- Ref amount (base currency) -->
       <template v-else-if="column.id === TABLE_COLUMN.refAmount">
         <span :class="['text-amount tabular-nums', amountColorClass]">{{ formattedRefAmount }}</span>
@@ -266,6 +272,9 @@ const signedAmount = (amount: number) => (props.tx.transactionType === TRANSACTI
 
 const formattedAmount = computed(() =>
   formatUIAmount(signedAmount(props.tx.amount), { currency: props.tx.currencyCode }),
+);
+const formattedRunningBalance = computed(() =>
+  props.tx.runningBalance == null ? '' : formatUIAmount(props.tx.runningBalance, { currency: props.tx.currencyCode }),
 );
 const formattedRefAmount = computed(() => formatBaseCurrency(signedAmount(props.tx.refAmount)));
 

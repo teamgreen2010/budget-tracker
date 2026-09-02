@@ -137,6 +137,9 @@ export interface TransactionsAttributes {
   freezeTableName: true,
 })
 export default class Transactions extends Model {
+  /** API-only enrichment; never persisted as a Transactions column. */
+  declare runningBalance?: number | null;
+
   @Column(IdColumn())
   declare id: RecordId;
 

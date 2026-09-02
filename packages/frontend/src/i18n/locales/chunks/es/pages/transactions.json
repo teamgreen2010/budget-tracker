@@ -175,6 +175,7 @@
         "category": "Categoría",
         "payee": "Beneficiario",
         "amount": "Importe",
+        "balance": "Saldo",
         "refAmount": "Importe base",
         "originalAmount": "Importe original",
         "note": "Nota",

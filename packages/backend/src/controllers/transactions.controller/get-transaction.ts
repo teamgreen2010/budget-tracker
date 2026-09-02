@@ -77,6 +77,7 @@ const schema = z.object({
         // With excludeRefundTxs: keep refunds linked to this transaction visible.
         keepRefundsForTxId: recordId().optional(),
         excludeBalanceAdjustments: booleanQuery().optional(),
+        includeRunningBalance: booleanQuery().optional(),
         // Absent = both, true = only planned, false = exclude planned.
         isPlanned: booleanQuery().optional(),
         transferFilter: z.nativeEnum(FILTER_OPERATION).optional(),

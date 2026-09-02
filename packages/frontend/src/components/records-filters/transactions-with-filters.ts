@@ -112,6 +112,7 @@ export const useTransactionsWithFilters = ({
           includeSplits: true,
           includeTags: true,
           includeGroups: true,
+          includeRunningBalance: true,
         },
         isNil,
       ) as Parameters<typeof loadTransactions>[0],

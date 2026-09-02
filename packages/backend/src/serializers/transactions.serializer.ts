@@ -89,6 +89,8 @@ export interface TransactionApiResponse {
    *  on the parent account. Absent on paths that don't compute it (single-tx writes,
    *  internal fetches). */
   canEdit?: boolean;
+  /** Account-currency balance immediately after this row; null when account access is unavailable. */
+  runningBalance?: number | null;
 }
 
 // ============================================================================
@@ -198,6 +200,7 @@ export function serializeTransaction(
     transactionGroups?: TransactionGroups[];
     addedBy?: { id: number; username: string; avatar: string | null } | null;
     canEdit?: boolean;
+    runningBalance?: number | null;
   },
 ): TransactionApiResponse {
   return {
@@ -266,6 +269,7 @@ export function serializeTransaction(
     // `canEdit` is omitted on paths that don't compute it (write returns, internal
     // fetches). Property-existence check so an explicit `false` survives serialization.
     ...('canEdit' in tx ? { canEdit: tx.canEdit ?? false } : {}),
+    ...('runningBalance' in tx ? { runningBalance: centsToApiDecimalOrNull(tx.runningBalance) } : {}),
   };
 }
 
@@ -280,6 +284,7 @@ export function serializeTransactions(
       transactionGroups?: TransactionGroups[];
       addedBy?: { id: number; username: string; avatar: string | null } | null;
       canEdit?: boolean;
+      runningBalance?: number | null;
     }
   >,
 ): TransactionApiResponse[] {

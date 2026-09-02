@@ -20,7 +20,7 @@ const PERSIST_DEBOUNCE_MS = 1_000;
  * missing from a stored order are appended in registry order so newly shipped
  * columns appear for existing users.
  */
-export function useTableColumns() {
+export function useTableColumns({ excludedColumns = [] }: { excludedColumns?: TABLE_COLUMN[] } = {}) {
   const { data: userSettings, patch: patchSettings } = useUserSettings();
 
   const localOrder = ref<TABLE_COLUMN[]>([...DEFAULT_COLUMN_ORDER]);
@@ -35,12 +35,26 @@ export function useTableColumns() {
     return [...known, ...missing];
   };
 
+  const insertBalanceAfterAmount = (order: TABLE_COLUMN[]): TABLE_COLUMN[] => {
+    const withoutBalance = order.filter((id) => id !== TABLE_COLUMN.balance);
+    const amountIndex = withoutBalance.indexOf(TABLE_COLUMN.amount);
+    if (amountIndex === -1) return [...withoutBalance, TABLE_COLUMN.balance];
+    return [
+      ...withoutBalance.slice(0, amountIndex + 1),
+      TABLE_COLUMN.balance,
+      ...withoutBalance.slice(amountIndex + 1),
+    ];
+  };
+
   watch(
     () => userSettings.value?.ui?.transactionsTable,
     (stored) => {
       if (!stored || hasUserEdits.value) return;
-      localOrder.value = sanitizeOrder(stored.columnOrder);
+      const isLegacyLayout = !stored.columnOrder.includes(TABLE_COLUMN.balance);
+      const sanitizedOrder = sanitizeOrder(stored.columnOrder);
+      localOrder.value = isLegacyLayout ? insertBalanceAfterAmount(sanitizedOrder) : sanitizedOrder;
       const visible = stored.visibleColumns.filter(isKnownColumnId);
+      if (isLegacyLayout && !visible.includes(TABLE_COLUMN.balance)) visible.push(TABLE_COLUMN.balance);
       if (visible.length > 0) localVisible.value = visible;
     },
     { immediate: true },
@@ -59,15 +73,19 @@ export function useTableColumns() {
 
   /** Columns to render, in user order. */
   const visibleColumns = computed<ColumnDefinition[]>(() =>
-    localOrder.value.filter((id) => localVisible.value.includes(id)).map((id) => COLUMN_DEFINITIONS_BY_ID[id]),
+    localOrder.value
+      .filter((id) => localVisible.value.includes(id) && !excludedColumns.includes(id))
+      .map((id) => COLUMN_DEFINITIONS_BY_ID[id]),
   );
 
   /** All columns in user order, with visibility flag — for the config panel. */
   const configurableColumns = computed(() =>
-    localOrder.value.map((id) => ({
-      definition: COLUMN_DEFINITIONS_BY_ID[id],
-      visible: localVisible.value.includes(id),
-    })),
+    localOrder.value
+      .filter((id) => !excludedColumns.includes(id))
+      .map((id) => ({
+        definition: COLUMN_DEFINITIONS_BY_ID[id],
+        visible: localVisible.value.includes(id),
+      })),
   );
 
   const toggleColumn = (id: string) => {

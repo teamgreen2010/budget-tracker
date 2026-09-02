@@ -175,6 +175,7 @@
         "category": "Kategori",
         "payee": "Penerima",
         "amount": "Jumlah",
+        "balance": "Saldo",
         "refAmount": "Jumlah dasar",
         "originalAmount": "Jumlah asli",
         "note": "Catatan",

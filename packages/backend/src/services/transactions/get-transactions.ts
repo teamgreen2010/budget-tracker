@@ -6,6 +6,8 @@ import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-acces
 import { getAccessibleBudgetIdsForUser } from '@services/sharing/auth/get-accessible-budget-ids.service';
 import { Op } from 'sequelize';
 
+import { attachRunningBalances } from './attach-running-balances';
+
 type FindWithFiltersParams = Parameters<typeof Transactions.findWithFilters>[0];
 
 /** The page size the list endpoint falls back to when the client asks for no specific one. */
@@ -24,6 +26,8 @@ type GetTransactionsParams = Omit<
   /** Absent = real rows + the caller's own plans; `true` = only the caller's plans; `false` = real rows only. */
   isPlanned?: boolean;
   excludeBalanceAdjustments?: boolean;
+  /** Enrich each row with its filter-independent, projected account balance. */
+  includeRunningBalance?: boolean;
 };
 
 /** Internal snapshot of the user who attached a tx to a shared budget. `null` for
@@ -60,7 +64,23 @@ interface TransactionAddedBy {
  * stats, etc.) call `Transactions.findWithFilters` directly with `access: { creator }`.
  */
 export const getTransactions = async (params: GetTransactionsParams) => {
-  const { userId, accountIds, budgetIds, from, limit, isPlanned, excludeBalanceAdjustments, ...rest } = params;
+  const {
+    userId,
+    accountIds,
+    budgetIds,
+    from,
+    limit,
+    isPlanned,
+    excludeBalanceAdjustments,
+    includeRunningBalance,
+    ...rest
+  } = params;
+
+  let accessibleAccounts: string[] | undefined;
+  const resolveAccessibleAccounts = async () => {
+    accessibleAccounts ??= await getAccessibleAccountIdsForUser({ userId });
+    return accessibleAccounts;
+  };
 
   // Budget-share path: when the caller asks for transactions in specific budgets, we
   // scope visibility through budget-share (in addition to any account-share lookup,
@@ -84,21 +104,20 @@ export const getTransactions = async (params: GetTransactionsParams) => {
   let scopedAccountIds: string[] | undefined;
   if (budgetGrantsVisibility) {
     if (accountIds && accountIds.length > 0) {
-      const accessibleAccounts = await getAccessibleAccountIdsForUser({ userId });
-      const accessibleSet = new Set(accessibleAccounts);
+      const accessibleSet = new Set(await resolveAccessibleAccounts());
       scopedAccountIds = accountIds.filter((id) => accessibleSet.has(id));
       if (scopedAccountIds.length === 0) return [];
     }
     // else: leave undefined → no account filter, full budget visibility.
   } else {
-    const accessibleAccounts = await getAccessibleAccountIdsForUser({ userId });
+    const accessibleAccountIds = await resolveAccessibleAccounts();
     if (accountIds && accountIds.length > 0) {
-      const accessibleSet = new Set(accessibleAccounts);
+      const accessibleSet = new Set(accessibleAccountIds);
       scopedAccountIds = accountIds.filter((id) => accessibleSet.has(id));
       if (scopedAccountIds.length === 0) return [];
     } else {
-      if (!accessibleAccounts.length) return [];
-      scopedAccountIds = accessibleAccounts;
+      if (!accessibleAccountIds.length) return [];
+      scopedAccountIds = accessibleAccountIds;
     }
   }
 
@@ -125,7 +144,15 @@ export const getTransactions = async (params: GetTransactionsParams) => {
     isRaw,
   });
 
-  if (!transactions.length || !budgetGrantsVisibility) return transactions;
+  const transactionsWithBalances = includeRunningBalance
+    ? await attachRunningBalances({
+        transactions,
+        accessibleAccountIds: await resolveAccessibleAccounts(),
+        userId,
+      })
+    : transactions;
+
+  if (!transactionsWithBalances.length || !budgetGrantsVisibility) return transactionsWithBalances;
 
   // Budget-scoped fetch — enrich each row with `addedBy` so the UI can label recipient
   // contributions. Owner-attached rows leave `metadata` null in the junction, so they
@@ -137,7 +164,7 @@ export const getTransactions = async (params: GetTransactionsParams) => {
   // account. Instead, the FE checks edit access lazily on dialog open via
   // GET /transactions/:id (which surfaces `canEdit` for free from the already-resolved
   // access result) when the parent account isn't in its local `accountsRecord`.
-  return attachAddedByMetadata({ transactions, budgetIds: scopedBudgetIds! });
+  return attachAddedByMetadata({ transactions: transactionsWithBalances, budgetIds: scopedBudgetIds! });
 };
 
 const attachAddedByMetadata = async <T extends { id: string }>({

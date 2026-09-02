@@ -297,6 +297,12 @@ export interface TransactionModel {
   originalCurrencyCode: string | null;
   refundLinked: boolean;
   isPlanned: boolean;
+  /**
+   * Account-currency balance immediately after this transaction in `(time, id)`
+   * order. Present only when requested by a list endpoint; null when the row is
+   * visible through a budget but its account is not accessible.
+   */
+  runningBalance?: number | null;
   /** Serializer-derived: set when a bank transaction merged into this row while it was planned. */
   plannedMerge?: { mergedAt: string } | null;
   /** Metadata about how this transaction was categorized */

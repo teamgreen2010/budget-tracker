@@ -4,6 +4,8 @@ import {
   CategoryOptionValue,
   CurrencyOptionValue,
   FILTER_OPERATION,
+  RESOURCE_TYPES,
+  SHARE_PERMISSIONS,
   type RecordId,
   SORT_DIRECTIONS,
   TRANSACTION_SORT_FIELD,
@@ -262,6 +264,178 @@ describe('Retrieve transactions with filters', () => {
 
       const withoutOffset = await helpers.getTransactions({ accountIds: [account.id], limit: 2, raw: true });
       expect(isoTimes(withoutOffset)).toEqual(['2024-06-05T00:00:00.000Z', '2024-06-04T00:00:00.000Z']);
+    });
+  });
+
+  describe('running balances', () => {
+    it('projects real and planned rows from the opening balance without changing the stored account balance', async () => {
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ initialBalance: 1000 }),
+        raw: true,
+      });
+
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 200,
+          transactionType: TRANSACTION_TYPES.income,
+          time: '2099-09-01T10:00:00Z',
+        }),
+        raw: true,
+      });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 50,
+          transactionType: TRANSACTION_TYPES.expense,
+          time: '2099-09-02T10:00:00Z',
+        }),
+        raw: true,
+      });
+      await helpers.createPlannedTransaction({
+        payload: {
+          accountId: account.id,
+          amount: 100,
+          transactionType: TRANSACTION_TYPES.expense,
+          time: '2099-09-03T10:00:00Z',
+        },
+        raw: true,
+      });
+      await helpers.createPlannedTransaction({
+        payload: {
+          accountId: account.id,
+          amount: 25,
+          transactionType: TRANSACTION_TYPES.income,
+          time: '2099-09-04T10:00:00Z',
+        },
+        raw: true,
+      });
+
+      const rows = await helpers.getTransactions({
+        accountIds: [account.id],
+        includeRunningBalance: true,
+        order: SORT_DIRECTIONS.asc,
+        raw: true,
+      });
+
+      expect(rows.map((tx) => tx.runningBalance)).toEqual([1200, 1150, 1050, 1075]);
+      expect(Number((await helpers.getAccount({ id: account.id, raw: true })).currentBalance)).toBe(1150);
+    });
+
+    it('keeps balances independent of filters, pagination and response sorting', async () => {
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ initialBalance: 1000 }),
+        raw: true,
+      });
+      const createdIds: string[] = [];
+
+      for (const [amount, transactionType, time] of [
+        [200, TRANSACTION_TYPES.income, '2099-08-01T10:00:00Z'],
+        [50, TRANSACTION_TYPES.expense, '2099-08-02T10:00:00Z'],
+        [75, TRANSACTION_TYPES.expense, '2099-08-03T10:00:00Z'],
+      ] as const) {
+        const [tx] = await helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({ accountId: account.id, amount, transactionType, time }),
+          raw: true,
+        });
+        createdIds.push(tx.id);
+      }
+
+      const filtered = await helpers.getTransactions({
+        accountIds: [account.id],
+        transactionType: TRANSACTION_TYPES.expense,
+        includeRunningBalance: true,
+        sortBy: TRANSACTION_SORT_FIELD.refAmount,
+        order: SORT_DIRECTIONS.desc,
+        limit: 1,
+        offset: 1,
+        raw: true,
+      });
+
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]!.id).toBe(createdIds[1]);
+      expect(filtered[0]!.runningBalance).toBe(1150);
+
+      const withoutEnrichment = await helpers.getTransactions({ accountIds: [account.id], raw: true });
+      expect(withoutEnrichment.every((tx) => !('runningBalance' in tx))).toBe(true);
+    });
+
+    it('uses the stable id tie-breaker when transactions have the same timestamp', async () => {
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ initialBalance: 100 }),
+        raw: true,
+      });
+      const time = '2099-08-05T12:00:00Z';
+
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 10,
+          transactionType: TRANSACTION_TYPES.expense,
+          time,
+        }),
+        raw: true,
+      });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 5,
+          transactionType: TRANSACTION_TYPES.income,
+          time,
+        }),
+        raw: true,
+      });
+
+      const rows = await helpers.getTransactions({
+        accountIds: [account.id],
+        includeRunningBalance: true,
+        order: SORT_DIRECTIONS.asc,
+        raw: true,
+      });
+      let expected = 100;
+      for (const row of rows) {
+        const amount = Number(row.amount);
+        expected += row.transactionType === TRANSACTION_TYPES.income ? amount : -amount;
+        expect(row.runningBalance).toBe(expected);
+      }
+    });
+
+    it('withholds the balance when only a shared budget grants access to the transaction', async () => {
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ initialBalance: 1000 }),
+        raw: true,
+      });
+      const [tx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 100 }),
+        raw: true,
+      });
+      const budget = await helpers.createCustomBudget({ name: 'Balance privacy', raw: true });
+      await helpers.addTransactionToCustomBudget({
+        id: budget.id,
+        payload: { transactionIds: [tx.id] },
+        raw: true,
+      });
+
+      const recipient = await helpers.provisionSecondUserWithBaseCurrency();
+      const invitation = await helpers.createShareInvitation({
+        inviteeEmail: recipient.email,
+        resourceType: RESOURCE_TYPES.budget,
+        resourceId: budget.id,
+        permission: SHARE_PERMISSIONS.read,
+        raw: true,
+      });
+      await helpers.asUser({
+        cookies: recipient.cookies,
+        fn: () => helpers.acceptShareInvitation({ token: invitation.token, raw: true }),
+      });
+
+      const rows = await helpers.asUser({
+        cookies: recipient.cookies,
+        fn: () => helpers.getTransactions({ budgetIds: [budget.id], includeRunningBalance: true, raw: true }),
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.runningBalance).toBeNull();
     });
   });
 
@@ -586,12 +760,28 @@ describe('Retrieve transactions with filters', () => {
       raw: true,
     });
     const adjustment = adjustmentResult.transaction!;
+    const [laterIncome] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 25,
+        transactionType: TRANSACTION_TYPES.income,
+        time: '2099-12-01T10:00:00Z',
+      }),
+      raw: true,
+    });
 
-    const excluded = await helpers.getTransactions({ excludeBalanceAdjustments: true, raw: true });
+    const excluded = await helpers.getTransactions({
+      accountIds: [account.id],
+      excludeBalanceAdjustments: true,
+      includeRunningBalance: true,
+      raw: true,
+    });
     const excludedIds = excluded.map((tx) => tx.id);
     expect(excludedIds).toContain(plain.id);
     expect(excludedIds).toContain(manualOutOfWallet.id);
+    expect(excludedIds).toContain(laterIncome.id);
     expect(excludedIds).not.toContain(adjustment.id);
+    expect(excluded.find((tx) => tx.id === laterIncome.id)!.runningBalance).toBe(525);
 
     const flagOff = await helpers.getTransactions({ raw: true });
     const flagOffIds = flagOff.map((tx) => tx.id);

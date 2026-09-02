@@ -175,6 +175,7 @@
         "category": "Категорія",
         "payee": "Отримувач",
         "amount": "Сума",
+        "balance": "Баланс",
         "refAmount": "Базова сума",
         "originalAmount": "Оригінальна сума",
         "note": "Примітка",

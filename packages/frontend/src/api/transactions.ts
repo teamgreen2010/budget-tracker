@@ -75,6 +75,8 @@ export const loadTransactions = async ({
   includeGroups?: boolean;
   /** true = only planned rows, false = exclude them, absent = both. */
   isPlanned?: boolean;
+  /** Include the filter-independent projected account balance for every row. */
+  includeRunningBalance?: boolean;
 }): Promise<endpointsTypes.GetTransactionsResponse> => {
   return api.get('/transactions', {
     ...params,

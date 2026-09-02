@@ -2,7 +2,7 @@
 import { Button } from '@/components/lib/ui/button';
 import { Card } from '@/components/lib/ui/card';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
-import type { TableSorting } from '@/components/transactions-table/columns';
+import { TABLE_COLUMN, type TableSorting } from '@/components/transactions-table/columns';
 import TransactionsTable from '@/components/transactions-table/transactions-table.vue';
 import { useTableColumns } from '@/components/transactions-table/use-table-columns';
 import { useDateLocale } from '@/composable/use-date-locale';
@@ -17,7 +17,7 @@ const props = defineProps<{ categorizedAt: string; isMobileMode: boolean }>();
 const emit = defineEmits<{ back: [] }>();
 
 const { format } = useDateLocale();
-const { visibleColumns } = useTableColumns();
+const { visibleColumns } = useTableColumns({ excludedColumns: [TABLE_COLUMN.balance] });
 
 const {
   sorting,

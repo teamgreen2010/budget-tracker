@@ -175,6 +175,7 @@
         "category": "Category",
         "payee": "Payee",
         "amount": "Amount",
+        "balance": "Balance",
         "refAmount": "Base amount",
         "originalAmount": "Original amount",
         "note": "Note",
