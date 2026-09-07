@@ -8,6 +8,9 @@ trial.
 
 ## Quickstart
 
+First [start shared-postgres and provision the application database](docs/external-postgres.md).
+For an existing installation, follow the data migration procedure before upgrading.
+
 ```bash
 git clone https://github.com/letehaha/budget-tracker.git
 cd budget-tracker/self-hosting
@@ -20,6 +23,7 @@ Open `http://<host>:8080`. Full walkthrough:
 
 ## Documentation
 
+- [External PostgreSQL](docs/external-postgres.md) – provisioning, migration, tests, and backups.
 - [Setup guide](docs/setup-guide.md) – prerequisites, quickstart, exposing
   the app publicly, building from source, backups.
 - [Reverse proxies](docs/reverse-proxies.md) – requirements any proxy must

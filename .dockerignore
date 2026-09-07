@@ -43,3 +43,6 @@ coverage
 .dockerignore
 Dockerfile
 docker-compose*.yml
+
+# Private test allocation credentials
+.test-databases/

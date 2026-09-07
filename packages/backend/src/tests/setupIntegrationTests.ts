@@ -2,6 +2,7 @@
 import type { RecordId } from '@bt/shared/types';
 import { until } from '@common/helpers';
 import { roundHalfToEven } from '@common/utils/round-half-to-even';
+import { authPool } from '@config/auth';
 import { i18nextReady } from '@i18n/index';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, jest } from '@jest/globals';
 import Categories from '@models/categories.model';
@@ -345,7 +346,7 @@ beforeEach(async () => {
       await redisClient.del(...keysWithoutPrefix);
     }
 
-    // Schema comes from template database (created in setup-e2e-tests.sh).
+    // Schema comes from per-worker migrations run by setup-e2e-tests.sh.
     // We just need to truncate data between tests.
     await truncateAllTables();
 
@@ -480,6 +481,9 @@ afterAll(async () => {
     await subscriptionReminderEmailQueue.close();
     await baseCurrencyChangeWorker.close();
     await baseCurrencyChangeQueue.close();
+
+    // Release both database pools before the next suite uses this worker.
+    await Promise.all([authPool.end(), connection.sequelize.close()]);
 
     // Now safe to close Redis client
     await redisClient.quit();

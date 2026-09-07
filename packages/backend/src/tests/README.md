@@ -1,39 +1,27 @@
-## End-to-End (E2E) Tests Setup
+# Backend integration tests
 
-The e2e tests setup is designed to efficiently run tests in parallel using multiple databases. Below is a detailed description of the setup process and necessary configurations.
+Start shared-postgres independently and install its updated allocation tooling.
+The default checkout is `$HOME/repos/shared-postgres`; override with
+`SHARED_POSTGRES_DIR`. Docker Compose, Python 3.10+, and npm are required.
 
-### Overview
+Copy the root `.env.test.example` to `.env.test`. Set `APPLICATION_REDIS_HOST=test-redis`,
+`JEST_WORKERS_AMOUNT` (1–32, default 4), and nonempty test values for
+`POLYGON_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `API_LAYER_API_KEYS`, `FMP_API_KEY`,
+`COINGECKO_API_KEY`, and `LOGO_DEV_SECRET_KEY`. Use `ADMIN_USERS=test1` for the admin endpoint fixtures. Auth secrets may use test values.
+Database settings in this file are superseded by the private worker manifest.
 
-The current implementation of E2E tests uses multiple databases to facilitate parallel test execution. Since each test expects that it will work with the fresh empty DB, we need to empty it before each test suite. Without multiple DBs, it means we can run tests only sequentially.
+Run `npm run test:e2e -w packages/backend`; Jest arguments are forwarded after `--`.
+The host requests isolated databases from infrastructure, then starts only Redis
+and a test runner. Each worker has its own non-superuser role and database. All
+migrations run for each worker and seeded exchange-rate counts are verified before
+Jest starts. There is no template database or template dump cache.
 
-### Jest Configuration
+`TEST_DATABASE_MANIFEST` selects credentials by `JEST_WORKER_ID`; database names
+are never derived from production/development settings. Redis retains per-worker
+key prefixes and per-suite cleanup. Use `SHOW_LOGS_IN_TESTS=true` for diagnostics.
 
-We use Jest as our testing framework and have defined `JEST_WORKERS_AMOUNT` workers to run the tests in parallel. Each worker requires a separate database instance.
-
-You can toggle logs displaying when runnin tests using `SHOW_LOGS_IN_TESTS` env variable (`true` or `false`).
-
-### Database Setup
-
-For each Jest worker, a corresponding database is created with the naming convention `{APPLICATION_DB_DATABASE}-{n}`, where `n` is the worker ID. This worker ID ranges exactly as `{1...JEST_WORKERS_AMOUNT}`.
-
-### Database Connection
-
-The database connection is specified in the src/models/index.ts file. Here, we dynamically assign the database name based on the Jest worker ID.
-
-```ts
-database: process.env.NODE_ENV === 'test'
-  ? `${DBConfig.database}-${process.env.JEST_WORKER_ID}`
-  : (DBConfig.database as string),
-```
-
-### Redis Connection
-
-To run tests correctly we also need to set keys per-worker and empty worker-related keys before each test. The key prefix for each worker is automatically managed by ioredis `keyPrefix` option in `src/redis-client.ts`, and cleanup logic is in `src/tests/setupIntegrationTests.ts`. Info is just FYI, no additional actions required.
-
-### Docker Integration
-
-To simplify the setup and avoid conflicts with the local environment, we use Docker to manage our databases and the application.
-
-The application is also containerized. We run our tests from within this Docker container to ensure it can communicate with the database containers.
-
-All Docker configs for tests are stored under `./docker/test/` directory.
+Unique allocations isolate concurrent worktrees/runs. Exit and signal handlers
+release them, with an additional CI cleanup step. If a machine crashes, release
+the logged allocation using shared-postgres `scripts/allocations.py release NAME`.
+See the [operations runbook](../../../../self-hosting/docs/external-postgres.md)
+for runner setup and ownership boundaries.

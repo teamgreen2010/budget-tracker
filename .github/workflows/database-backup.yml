@@ -32,9 +32,8 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          DB_USERNAME: ${{ secrets.APPLICATION_DB_USERNAME }}
           DB_DATABASE: ${{ secrets.APPLICATION_DB_DATABASE }}
-          DB_SERVICE_NAME: ${{ secrets.DB_SERVICE_NAME }}
+          SHARED_POSTGRES_DIR: ${{ vars.SHARED_POSTGRES_DIR }}
           COMMIT_SHA: ${{ github.sha }}
           BACKUP_REASON: ${{ inputs.backup_reason || 'scheduled' }}
         with:
@@ -42,7 +41,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_KEY_PASSPHRASE }}
-          envs: R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET,DB_USERNAME,DB_DATABASE,DB_SERVICE_NAME,COMMIT_SHA,BACKUP_REASON
+          envs: R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET,DB_DATABASE,SHARED_POSTGRES_DIR,COMMIT_SHA,BACKUP_REASON
           script: |
             set -e
             set -o pipefail
@@ -52,25 +51,14 @@ jobs:
             # Generate backup filename with timestamp and commit SHA
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)
             SHORT_SHA="${COMMIT_SHA:0:7}"
-            BACKUP_FILENAME="db_backup_${TIMESTAMP}_${SHORT_SHA}_${BACKUP_REASON}.sql.gz"
+            BACKUP_FILENAME="db_backup_${TIMESTAMP}_${SHORT_SHA}_${BACKUP_REASON}.dump"
             BACKUP_PATH="/tmp/${BACKUP_FILENAME}"
 
-            # Find the app DB container by name pattern (excludes Dokploy's internal postgres)
-            DB_CONTAINER=$(docker ps --format '{{.Names}}' | grep -v 'dokploy' | grep -m1 "${DB_SERVICE_NAME}.*-db-")
-            if [ -z "$DB_CONTAINER" ]; then
-              echo "❌ Could not find container matching: $DB_SERVICE_NAME (excluding dokploy)"
-              docker ps --format 'table {{.Names}}\t{{.Image}}'
-              exit 1
-            fi
-            echo "📦 Creating database dump from container: $DB_CONTAINER"
-            docker exec "$DB_CONTAINER" pg_dump \
-              -U "$DB_USERNAME" \
-              -d "$DB_DATABASE" \
-              --no-owner \
-              --no-acl \
-              | gzip > "$BACKUP_PATH"
+            # Infrastructure owns server access; target exactly the configured application database.
+            trap 'rm -f "$BACKUP_PATH"' EXIT
+            python3 "${SHARED_POSTGRES_DIR:-$HOME/repos/shared-postgres}/scripts/backup.py" "$DB_DATABASE" "$BACKUP_PATH"
 
-            # Validate backup is not empty (empty gzip is ~20 bytes)
+            # Validate backup is not empty (custom archive must contain a catalog)
             BACKUP_SIZE_BYTES=$(stat -c%s "$BACKUP_PATH" 2>/dev/null || stat -f%z "$BACKUP_PATH")
             if [ "$BACKUP_SIZE_BYTES" -lt 100 ]; then
               echo "❌ Backup file is too small (${BACKUP_SIZE_BYTES} bytes), pg_dump likely failed"
