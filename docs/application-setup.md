@@ -20,7 +20,9 @@ This guide will walk you through setting up the Budget Tracker project on your l
 
 - **Node.js**: v23.10.0
 - **npm**: Comes with Node.js
-- **Docker & Docker Compose**: For containerized development (essencial)
+- **Docker & Docker Compose**: Only for containerized development
+- **PostgreSQL 16 and Redis 7**: Required on the host when running without Docker
+- **mkcert**: Recommended for locally trusted HTTPS certificates
 
 ## Project Architecture
 
@@ -116,6 +118,151 @@ npm run docker:dev:migrate
 - To re-roll auto-assigned ports, delete `.env.development.local` and run again.
 
 Each worktree needs its own `.env.development` copy (the file is gitignored).
+
+## Manual Setup (Without Docker)
+
+In this setup, the backend and frontend run as local npm processes. PostgreSQL
+and Redis must also be installed and running on the host; npm does not provide
+those services. The custom currency-rates service is optional because the
+backend can fall back to its online providers.
+
+### 1. Install Dependencies
+
+From the repository root, install the versions in `package-lock.json`:
+
+```bash
+npm ci
+```
+
+The root `package.json` pins Node.js 23.10.0 through Volta. If you do not use
+Volta, select that Node.js version with your preferred version manager before
+installing dependencies.
+
+### 2. Start PostgreSQL and Redis
+
+Install PostgreSQL 16 and Redis 7 using the package manager or native installer
+for your operating system, then make sure both services are running.
+
+Redis must listen on `127.0.0.1:6379`. `MAP_REDIS_PORT_TO_OS_PORT` only controls
+Docker port mapping and is not read by the locally running backend.
+
+Create a development database and owner (run this as a PostgreSQL administrator):
+
+```sql
+CREATE ROLE budget_tracker WITH LOGIN PASSWORD 'development-password';
+CREATE DATABASE budget_tracker OWNER budget_tracker;
+```
+
+You can verify Redis from a terminal if `redis-cli` is installed:
+
+```bash
+redis-cli ping
+```
+
+It should print `PONG`.
+
+### 3. Create the Development Environment File
+
+macOS or Linux:
+
+```bash
+cp .env.template .env.development
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.template .env.development
+```
+
+Edit `.env.development` and replace the Docker-only hostnames and database
+credentials with the local values:
+
+```dotenv
+APPLICATION_DB_HOST=127.0.0.1
+APPLICATION_DB_PORT=5432
+APPLICATION_DB_USERNAME=budget_tracker
+APPLICATION_DB_PASSWORD=development-password
+APPLICATION_DB_DATABASE=budget_tracker
+
+APPLICATION_REDIS_HOST=127.0.0.1
+
+# Use a locally installed currency-rates service here if you have one.
+# Otherwise this fails fast and the backend uses its online fallback providers.
+CURRENCY_RATES_API_URL=http://127.0.0.1:8102
+
+BETTER_AUTH_URL=https://localhost:8081
+AUTH_ORIGIN=https://localhost:8100
+```
+
+The API keys in the template are optional for basic local development. Never
+commit `.env.development`; it is already ignored by Git.
+
+### 4. Configure Local HTTPS
+
+The checked-in development configuration expects HTTPS for authentication and
+passkeys. Install `mkcert`, then run:
+
+```bash
+npm run generate-ssl-certs
+```
+
+The backend and Vite both use the generated files in `docker/dev/certs/`; the
+directory name does not mean Docker is required.
+
+To use plain HTTP instead, do not generate the certificates and change every
+local public URL in `.env.development` to HTTP, including:
+
+```dotenv
+BETTER_AUTH_URL=http://localhost:8081
+AUTH_ORIGIN=http://localhost:8100
+ENABLE_BANKING_REDIRECT_URL=http://localhost:8100/bank-callback
+PLAID_REDIRECT_URI=http://localhost:8100/plaid-oauth-return
+```
+
+### 5. Run Database Migrations
+
+From the repository root:
+
+```bash
+npm run db:migrate
+```
+
+Run this once during initial setup and again after pulling changes that add
+database migrations.
+
+### 6. Start With npm
+
+Use two terminals from the repository root:
+
+```bash
+# Terminal 1: Express API with nodemon
+npm run dev:backend
+```
+
+```bash
+# Terminal 2: Vue/Vite development server
+npm run dev:frontend
+```
+
+Open `https://localhost:8100`. The backend API runs at
+`https://localhost:8081`. Both processes watch their source files for changes.
+
+### 7. Start and Debug With VS Code
+
+1. Open the repository root in VS Code.
+2. Create `.env.development`, start PostgreSQL and Redis, and run the migrations
+   as described above.
+3. Open **Run and Debug** (`Ctrl+Shift+D` / `Cmd+Shift+D`).
+4. Select **App: backend + frontend** and press `F5`.
+
+The checked-in `.vscode/launch.json` starts both npm processes as a compound
+debug session. When Vite is ready, VS Code opens Chrome at the frontend URL.
+Stopping the compound session stops both processes. Backend TypeScript
+breakpoints and frontend browser breakpoints are supported.
+
+You can also select **Backend: npm dev** or **Frontend: npm dev** to launch only
+one half of the application.
 
 ## Configuration
 

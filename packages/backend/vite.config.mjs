@@ -35,13 +35,16 @@ export default defineConfig({
     target: 'node23',
     outDir: 'dist',
     lib: {
-      entry: path.resolve(__dirname, 'src/app.ts'),
+      entry: {
+        app: path.resolve(__dirname, 'src/app.ts'),
+        'import-plaid-connection': path.resolve(__dirname, 'src/scripts/import-plaid-connection.ts'),
+      },
       formats: ['cjs'],
     },
     rollupOptions: {
       external: externalDeps,
       output: {
-        entryFileNames: 'app.js',
+        entryFileNames: '[name].js',
         // Fixes default import issues
         // Initially was added to resolve issues with `p-queue` import
         // Without this setting the "import PQueue from 'p-queue';" works incorrectly

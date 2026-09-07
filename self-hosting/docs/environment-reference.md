@@ -41,24 +41,49 @@ Ignored unless you use the [Traefik overlay](traefik-overlay.md)
 
 ## Optional features (backend runtime; off until set)
 
-| Variable                                                                       | Enables                                                                                                                                                                     |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                                          | All outbound email: address verification, share invitations, membership notices. Unset means invitations are created but never delivered – the link must be shared manually |
-| `APP_URL`                                                                      | Public URL of your frontend, used as the base for links inside invitation / notification emails (defaults to `https://moneymatter.app`)                                     |
-| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`                                    | Google sign-in                                                                                                                                                              |
-| `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`                                    | GitHub sign-in                                                                                                                                                              |
-| `ENABLE_BANKING_REDIRECT_URL`                                                  | Open-banking integrations                                                                                                                                                   |
-| `POLYGON_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `FMP_API_KEY`, `COINGECKO_API_KEY` | Investments / market data                                                                                                                                                   |
-| `CRYPTO_PRICES_SYNC_INTERVAL_MINUTES`                                          | Crypto price sync cadence (1–59, default 15)                                                                                                                                |
-| `API_LAYER_API_KEYS`                                                           | APILayer paid currency-rate fallback                                                                                                                                        |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY`     | AI transaction categorisation                                                                                                                                               |
-| `LOGO_DEV_SECRET_KEY`                                                          | Server-side payee brand-logo search. Search results only – rendering the logo images also needs `VITE_LOGO_DEV_TOKEN` (below)                                               |
-| `ADMIN_USERS`                                                                  | Comma-separated admin usernames                                                                                                                                             |
-| `AUTH_RP_ID`, `AUTH_RP_NAME`                                                   | WebAuthn / passkey support. `AUTH_RP_NAME` doubles as the brand and sender name on outbound emails                                                                          |
-| `ALLOWED_ORIGINS`                                                              | Extra CORS origins beyond `AUTH_ORIGIN`                                                                                                                                     |
-| `SENTRY_DSN`                                                                   | Backend error tracking                                                                                                                                                      |
-| `SYSTEM_MAX_SIGNUPS_ALLOWED`                                                   | Cap on user accounts: signups are rejected once the instance has this many users (`0` disables signups, `1` = "just me"). Deleting a user frees a slot. Unset = unlimited   |
-| `SYSTEM_DEMO_DISABLED`                                                         | Blocks demo-account creation (`POST /demo`). Defaults to `true` in the self-host compose stack; set to `false` to allow demo accounts                                       |
+| Variable                                                                                                  | Enables                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                                                                     | All outbound email: address verification, share invitations, membership notices. Unset means invitations are created but never delivered – the link must be shared manually |
+| `APP_URL`                                                                                                 | Public URL of your frontend, used as the base for links inside invitation / notification emails (defaults to `https://moneymatter.app`)                                     |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`                                                               | Google sign-in                                                                                                                                                              |
+| `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`                                                               | GitHub sign-in                                                                                                                                                              |
+| `ENABLE_BANKING_REDIRECT_URL`                                                                             | Open-banking integrations                                                                                                                                                   |
+| `PLAID_CLIENT_ID`, `PLAID_SECRET`                                                                         | Enables the Plaid bank provider (must be supplied together)                                                                                                                 |
+| `PLAID_ENV`, `PLAID_COUNTRY_CODES`                                                                        | Plaid environment and Link country allow-list (defaults to `sandbox`, `US,CA`)                                                                                              |
+| `PLAID_REDIRECT_URI`, `PLAID_WEBHOOK_URL`, `PLAID_CLIENT_NAME`                                            | Plaid Link OAuth return URL, verified webhook endpoint, and Link display name                                                                                               |
+| `PLAID_IMPORT_ACCESS_TOKEN` (or `PLAID_ACCESS_TOKEN`), `PLAID_IMPORT_USER_ID` / `PLAID_IMPORT_USER_EMAIL` | One-shot import of an externally linked Plaid Item for exactly one application user                                                                                         |
+| `PLAID_IMPORT_EXPECTED_ITEM_ID`, `PLAID_IMPORT_CONNECTION_NAME`, `PLAID_IMPORT_UPDATE_WEBHOOK`            | Optional Plaid import validation, display name, and Item webhook update                                                                                                     |
+| `POLYGON_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `FMP_API_KEY`, `COINGECKO_API_KEY`                            | Investments / market data                                                                                                                                                   |
+| `CRYPTO_PRICES_SYNC_INTERVAL_MINUTES`                                                                     | Crypto price sync cadence (1–59, default 15)                                                                                                                                |
+| `API_LAYER_API_KEYS`                                                                                      | APILayer paid currency-rate fallback                                                                                                                                        |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY`                                | AI transaction categorisation                                                                                                                                               |
+| `LOGO_DEV_SECRET_KEY`                                                                                     | Server-side payee brand-logo search. Search results only – rendering the logo images also needs `VITE_LOGO_DEV_TOKEN` (below)                                               |
+| `ADMIN_USERS`                                                                                             | Comma-separated admin usernames                                                                                                                                             |
+| `AUTH_RP_ID`, `AUTH_RP_NAME`                                                                              | WebAuthn / passkey support. `AUTH_RP_NAME` doubles as the brand and sender name on outbound emails                                                                          |
+| `ALLOWED_ORIGINS`                                                                                         | Extra CORS origins beyond `AUTH_ORIGIN`                                                                                                                                     |
+| `SENTRY_DSN`                                                                                              | Backend error tracking                                                                                                                                                      |
+| `SYSTEM_MAX_SIGNUPS_ALLOWED`                                                                              | Cap on user accounts: signups are rejected once the instance has this many users (`0` disables signups, `1` = "just me"). Deleting a user frees a slot. Unset = unlimited   |
+| `SYSTEM_DEMO_DISABLED`                                                                                    | Blocks demo-account creation (`POST /demo`). Defaults to `true` in the self-host compose stack; set to `false` to allow demo accounts                                       |
+
+### Importing an existing Plaid Item
+
+Set the Plaid import variables in the self-hosting `.env`, restart the backend so
+the container receives them, and run:
+
+```sh
+docker compose exec backend npm run plaid:import-connection
+```
+
+The command validates the Item and its Transactions access with Plaid, encrypts
+the access token using `APPLICATION_JWT_SECRET`, and creates or reuses the
+connection for the configured user. After it succeeds, remove
+`PLAID_IMPORT_ACCESS_TOKEN` (or `PLAID_ACCESS_TOKEN`) from `.env` and restart the
+backend again. Accounts can then be selected from the connection's integration
+details screen.
+
+When running directly from a source checkout, use
+`npm -w budget-tracker-be run plaid:import-connection:dev` with the equivalent
+development environment configured.
 
 ## Frontend runtime (optional)
 

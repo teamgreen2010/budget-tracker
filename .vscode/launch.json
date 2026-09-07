@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: npm dev",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:backend"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Frontend: npm dev",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:frontend"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**"],
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://[^\\s\\x1b]+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome",
+        "killOnServerStop": true
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "App: backend + frontend",
+      "configurations": ["Backend: npm dev", "Frontend: npm dev"],
+      "stopAll": true
+    }
+  ]
+}

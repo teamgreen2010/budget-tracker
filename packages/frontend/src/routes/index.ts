@@ -64,6 +64,12 @@ const routes: RouteRecordRaw[] = [
         meta: { i18nChunks: ['pages/account-integrations'] as I18nChunkName[] },
       },
       {
+        path: '/plaid-oauth-return',
+        name: 'plaidOauthReturn',
+        component: () => import('@/pages/accounts/integrations/plaid-oauth-return.vue'),
+        meta: { i18nChunks: ['pages/account-integrations'] as I18nChunkName[] },
+      },
+      {
         path: '/loans',
         name: ROUTES_NAMES.loans,
         component: () => import('@/pages/loans/index.vue'),

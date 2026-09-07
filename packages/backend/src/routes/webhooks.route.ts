@@ -1,3 +1,4 @@
+import { plaidWebhook } from '@controllers/bank-data-providers/plaid/webhook';
 import { handleGitHubWebhook } from '@controllers/webhooks.controller';
 import { verifyGitHubWebhook } from '@middlewares/github-webhook';
 import { Router } from 'express';
@@ -16,5 +17,6 @@ const router = Router({});
  * 5. Events: Select "Releases" only
  */
 router.post('/github', verifyGitHubWebhook, handleGitHubWebhook);
+router.post('/plaid', plaidWebhook);
 
 export default router;

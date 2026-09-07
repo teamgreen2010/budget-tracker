@@ -30,6 +30,7 @@ export enum ACCOUNT_TYPES {
   lunchflow = 'lunchflow', // lunchflow provider connection
   walutomat = 'walutomat', // walutomat provider connection
   simplefin = 'simplefin', // SimpleFIN Bridge provider connection
+  plaid = 'plaid', // Plaid provider connection
 }
 
 /**
@@ -41,6 +42,7 @@ export enum BANK_PROVIDER_TYPE {
   LUNCHFLOW = 'lunchflow',
   WALUTOMAT = 'walutomat',
   SIMPLEFIN = 'simplefin',
+  PLAID = 'plaid',
 }
 
 /**
@@ -156,6 +158,14 @@ export enum PAYMENT_TYPES {
   mobilePayment = 'mobilePayment',
   creditCard = 'creditCard',
   debitCard = 'debitCard',
+  check = 'check',
+  billPayment = 'billPayment',
+  accountTransfer = 'accountTransfer',
+  zelleCredit = 'zelleCredit',
+  achCredit = 'achCredit',
+  loanPayment = 'loanPayment',
+  card = 'card',
+  unknown = 'unknown',
 }
 
 export enum SORT_DIRECTIONS {

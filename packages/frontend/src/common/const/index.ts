@@ -22,6 +22,14 @@ export const VERBOSE_PAYMENT_TYPES: VerbosePaymentType[] = [
   { value: PAYMENT_TYPES.mobilePayment, label: 'common.paymentTypes.mobilePayment' },
   { value: PAYMENT_TYPES.voucher, label: 'common.paymentTypes.voucher' },
   { value: PAYMENT_TYPES.webPayment, label: 'common.paymentTypes.webPayment' },
+  { value: PAYMENT_TYPES.check, label: 'common.paymentTypes.check' },
+  { value: PAYMENT_TYPES.billPayment, label: 'common.paymentTypes.billPayment' },
+  { value: PAYMENT_TYPES.accountTransfer, label: 'common.paymentTypes.accountTransfer' },
+  { value: PAYMENT_TYPES.zelleCredit, label: 'common.paymentTypes.zelleCredit' },
+  { value: PAYMENT_TYPES.achCredit, label: 'common.paymentTypes.achCredit' },
+  { value: PAYMENT_TYPES.loanPayment, label: 'common.paymentTypes.loanPayment' },
+  { value: PAYMENT_TYPES.card, label: 'common.paymentTypes.card' },
+  { value: PAYMENT_TYPES.unknown, label: 'common.paymentTypes.unknown' },
 ];
 
 const OUT_OF_WALLET_ACCOUNT_NAME_KEY = 'common.outOfWallet';

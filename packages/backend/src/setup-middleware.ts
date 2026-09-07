@@ -111,7 +111,7 @@ export function setupMiddleware(app: Express) {
   // Paths that need raw body preserved (for signature verification)
   // Note: These paths should include the full path WITH API_PREFIX because
   // this middleware runs before route mounting, so req.path contains full path
-  const rawBodyPaths = [`${API_PREFIX}/webhooks/github`];
+  const rawBodyPaths = [`${API_PREFIX}/webhooks/github`, `${API_PREFIX}/webhooks/plaid`];
 
   // Binary uploads: the body is a file, not JSON, and the route mounts its own
   // `express.raw` parser. Running the JSON parser here first would buffer a

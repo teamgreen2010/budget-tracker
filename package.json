@@ -8,6 +8,10 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:backend": "npm -w packages/backend run dev",
+    "dev:frontend": "npm -w packages/frontend run dev",
+    "db:migrate": "npm -w packages/backend run migrate:dev",
+    "db:migrate:undo": "npm -w packages/backend run migrate:dev:undo",
     "lint": "npm -w budget-tracker-be run lint && npm -w budget-tracker-fe run lint",
     "typecheck": "npm -w budget-tracker-be run typecheck && npm -w budget-tracker-fe run typecheck",
     "landing:dev": "npm -w packages/landing run dev",

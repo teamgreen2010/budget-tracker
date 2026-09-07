@@ -101,7 +101,15 @@
       "debitCard": "Debit Card",
       "mobilePayment": "Mobile Payment",
       "voucher": "Voucher",
-      "webPayment": "Web Payment"
+      "webPayment": "Web Payment",
+      "check": "Check",
+      "billPayment": "Bill Payment",
+      "accountTransfer": "Account Transfer",
+      "zelleCredit": "Zelle Credit",
+      "achCredit": "ACH Credit",
+      "loanPayment": "Loan Payment",
+      "card": "Card",
+      "unknown": "Unknown"
     },
     "vehicleClasses": {
       "sedan": "Sedan",

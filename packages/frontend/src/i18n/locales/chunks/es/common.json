@@ -98,7 +98,15 @@
       "debitCard": "Tarjeta de débito",
       "mobilePayment": "Pago móvil",
       "voucher": "Vale",
-      "webPayment": "Pago web"
+      "webPayment": "Pago web",
+      "check": "Cheque",
+      "billPayment": "Pago de factura",
+      "accountTransfer": "Transferencia entre cuentas",
+      "zelleCredit": "Crédito de Zelle",
+      "achCredit": "Crédito ACH",
+      "loanPayment": "Pago de préstamo",
+      "card": "Tarjeta",
+      "unknown": "Desconocido"
     },
     "vehicleClasses": {
       "sedan": "Sedán",

@@ -278,6 +278,12 @@ export default class Balances extends Model {
         break;
       }
 
+      case ACCOUNT_TYPES.plaid: {
+        // Plaid balances are authoritative at sync time; transaction rows do
+        // not carry a reliable running balance.
+        break;
+      }
+
       default: {
         const exhaustiveCheck: never = data.accountType;
 

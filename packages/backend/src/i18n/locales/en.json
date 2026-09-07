@@ -275,6 +275,18 @@
       "accountAbsentFromResponse": "SimpleFIN did not return data for this account in the latest sync. The account may have been disabled at the bank – try syncing again, or reconnect if the issue persists.",
       "rateLimited": "SimpleFIN is receiving too many requests right now. Please wait a little and try again."
     },
+    "plaid": {
+      "notConfigured": "Plaid is not configured on this server.",
+      "invalidCredentialsFormat": "Invalid Plaid Link credentials.",
+      "invalidStoredCredentials": "Invalid stored Plaid credentials.",
+      "itemAlreadyConnected": "This Plaid Item is already connected.",
+      "itemOwnedByAnotherUser": "This Plaid Item is already connected to another user.",
+      "expectedItemMismatch": "The Plaid Item does not match the expected Item ID.",
+      "transactionsNotEnabled": "The Plaid Item does not have the Transactions product enabled.",
+      "webhookNotConfigured": "PLAID_WEBHOOK_URL must be configured before updating the Item webhook.",
+      "accountNotFound": "Plaid account not found.",
+      "accountNoExternalId": "This account is not linked to a Plaid account."
+    },
     "walutomat": {
       "invalidCredentialsFormat": "Invalid Walutomat credentials format. API key and private key are required.",
       "invalidApiKey": "Invalid Walutomat API key or private key.",

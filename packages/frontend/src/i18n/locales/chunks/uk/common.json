@@ -101,7 +101,15 @@
       "debitCard": "Дебетова картка",
       "mobilePayment": "Мобільний платіж",
       "voucher": "Ваучер",
-      "webPayment": "Інтернет-платіж"
+      "webPayment": "Інтернет-платіж",
+      "check": "Чек",
+      "billPayment": "Оплата рахунку",
+      "accountTransfer": "Переказ між рахунками",
+      "zelleCredit": "Зарахування Zelle",
+      "achCredit": "Зарахування ACH",
+      "loanPayment": "Платіж за кредитом",
+      "card": "Картка",
+      "unknown": "Невідомо"
     },
     "vehicleClasses": {
       "sedan": "Седан",

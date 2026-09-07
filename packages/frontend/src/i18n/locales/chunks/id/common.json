@@ -101,7 +101,15 @@
       "debitCard": "Kartu Debit",
       "mobilePayment": "Pembayaran Seluler",
       "voucher": "Voucher",
-      "webPayment": "Pembayaran Web"
+      "webPayment": "Pembayaran Web",
+      "check": "Cek",
+      "billPayment": "Pembayaran tagihan",
+      "accountTransfer": "Transfer antar rekening",
+      "zelleCredit": "Kredit Zelle",
+      "achCredit": "Kredit ACH",
+      "loanPayment": "Pembayaran pinjaman",
+      "card": "Kartu",
+      "unknown": "Tidak diketahui"
     },
     "vehicleClasses": {
       "sedan": "Sedan",

@@ -27,6 +27,10 @@
         "walutomat": {
           "name": "Walutomat",
           "description": "Polish currency exchange platform with 23 currencies"
+        },
+        "plaid": {
+          "name": "Plaid",
+          "description": "Connect US and Canadian bank accounts through Plaid"
         }
       },
       "monobank": {
@@ -240,6 +244,14 @@
           "importFailed": "Failed to import accounts. Please try again."
         }
       },
+      "plaid": {
+        "description": "Securely connect your bank through Plaid. Your credentials are entered only with your bank.",
+        "backButton": "Back",
+        "connectButton": "Connect with Plaid",
+        "importButton": "Sync {count} account(s)",
+        "connectFailed": "Failed to connect Plaid",
+        "syncFailed": "Failed to sync Plaid accounts"
+      },
       "walutomat": {
         "help": {
           "trigger": "How do I set up Walutomat API access?"
@@ -440,7 +452,8 @@
         "enableBanking": "Since smooth integration requires several thousands $ per month to be paid, it's only possible to connect by creating own EnableBanking dev account, and setting up \"test\" application with real connection to own banks, storing certificates and keys and uploading them here. Moderate technical knowledge required",
         "lunchflow": "Just connect your banks on the LunchFlow side, then create and paste your LunchFlow API key",
         "simplefin": "SimpleFIN Bridge is a paid service. You create a bridge account, link your bank, and paste a setup token — no developer setup required.",
-        "walutomat": "Requires generating an RSA key pair and uploading the public key to Walutomat dashboard"
+        "walutomat": "Requires generating an RSA key pair and uploading the public key to Walutomat dashboard",
+        "plaid": "Requires Plaid server configuration and a secure Link session"
       }
     },
     "connectionName": {

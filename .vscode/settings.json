@@ -1,4 +1,7 @@
 {
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "js/ts.tsdk.path": "./node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
   "oxc.fmt.configPath": ".oxfmtrc.json",
   "prettier.enable": false,
   "editor.defaultFormatter": "oxc.oxc-vscode",
@@ -10,12 +13,13 @@
   "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
   "[javascriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
   "[typescriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-  "[json]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[json]": { "editor.defaultFormatter": "vscode.json-language-features" },
   "[jsonc]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
   "[yml]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[dockercompose]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
-  }
+  },
+  "js/ts.experimental.useTsgo": false
 }

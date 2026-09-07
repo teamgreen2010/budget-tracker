@@ -14,6 +14,8 @@ import updateConnectionDetails from '@controllers/bank-data-providers/connection
 import listBanks from '@controllers/bank-data-providers/enablebanking/list-banks';
 import listCountries from '@controllers/bank-data-providers/enablebanking/list-countries';
 import oauthCallback from '@controllers/bank-data-providers/enablebanking/oauth-callback';
+import plaidLinkToken from '@controllers/bank-data-providers/plaid/link-token';
+import plaidUpdateComplete from '@controllers/bank-data-providers/plaid/update-complete';
 import * as providersController from '@controllers/bank-data-providers/providers.controller';
 import checkSync from '@controllers/bank-data-providers/sync/check-sync';
 import getSyncStatus from '@controllers/bank-data-providers/sync/get-sync-status';
@@ -177,6 +179,22 @@ router.post(
   checkBaseCurrencyLock,
   validateEndpoint(oauthCallback.schema),
   oauthCallback.handler,
+);
+
+// Plaid Link lifecycle (the public token is exchanged server-side).
+router.post(
+  '/plaid/link-token',
+  authenticateSession,
+  blockDemoUsers,
+  validateEndpoint(plaidLinkToken.schema),
+  plaidLinkToken.handler,
+);
+router.post(
+  '/plaid/update-complete',
+  authenticateSession,
+  blockDemoUsers,
+  validateEndpoint(plaidUpdateComplete.schema),
+  plaidUpdateComplete.handler,
 );
 
 export default router;

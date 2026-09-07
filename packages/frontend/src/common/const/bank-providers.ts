@@ -83,6 +83,16 @@ export const METAINFO_FROM_TYPE: Record<string, ProviderMetainfo> = {
     difficulty: 'easy',
     regions: [REGIONS.usa, REGIONS.canada],
   },
+  [BANK_PROVIDER_TYPE.PLAID]: {
+    nameKey: 'pages.integrations.providers.plaid.name',
+    descriptionKey: 'pages.integrations.providers.plaid.description',
+    pricingLabelKey: 'pages.integrations.labels.paid',
+    difficultyLabelKey: 'pages.integrations.labels.easySetup',
+    difficultyTooltipKey: 'pages.integrations.tooltips.plaid',
+    pricing: 'paid',
+    difficulty: 'easy',
+    regions: [REGIONS.usa, REGIONS.canada],
+  },
 };
 
 export interface RegionFilterGroup {
@@ -116,4 +126,5 @@ export const PROVIDER_DISPLAY_ORDER: readonly string[] = [
   BANK_PROVIDER_TYPE.MONOBANK,
   BANK_PROVIDER_TYPE.ENABLE_BANKING,
   BANK_PROVIDER_TYPE.WALUTOMAT,
+  BANK_PROVIDER_TYPE.PLAID,
 ];

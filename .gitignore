@@ -171,3 +171,4 @@ packages/backend/src/i18n/locales/*.missing.json
 
 # Python bytecode from the .claude hook scripts
 __pycache__/
+

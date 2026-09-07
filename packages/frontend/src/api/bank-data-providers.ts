@@ -129,6 +129,20 @@ export const connectProvider = async (
   return response;
 };
 
+export const createPlaidLinkToken = async (
+  connectionId?: string,
+): Promise<{ linkToken: string; expiration: string }> => {
+  const response = await api.post('/bank-data-providers/plaid/link-token', {
+    connectionId,
+  });
+  return response;
+};
+
+export const completePlaidReauthorization = async (connectionId: string): Promise<{ message: string }> => {
+  const response = await api.post('/bank-data-providers/plaid/update-complete', { connectionId });
+  return response;
+};
+
 export const disconnectProvider = async ({
   connectionId,
   removeAssociatedAccounts = false,
