@@ -2,6 +2,7 @@ import { isPerfDebugEnabled, registerPerfQueryHooks } from '@common/lib/perf/per
 import { types as pgTypes } from 'pg';
 import { Sequelize } from 'sequelize-typescript';
 
+import { databaseConfig, databasePool } from '../../config/db/connection';
 import AccountGroupingModel from './accounts-groups/account-grouping.model';
 import AccountGroupsModel from './accounts-groups/account-groups.model';
 import AccountsModel from './accounts.model';
@@ -68,14 +69,7 @@ import VenturePlatformsModel from './venture/venture-platforms.model';
 // non-null values, so we don't need a null branch.
 pgTypes.setTypeParser(pgTypes.builtins.INT8, (val) => Number(val));
 
-const DBConfig: Record<string, unknown> = {
-  host: process.env.APPLICATION_DB_HOST,
-  username: process.env.APPLICATION_DB_USERNAME,
-  password: process.env.APPLICATION_DB_PASSWORD,
-  database: process.env.APPLICATION_DB_DATABASE,
-  port: process.env.APPLICATION_DB_PORT,
-  dialect: process.env.APPLICATION_DB_DIALECT,
-};
+const DBConfig = databaseConfig();
 
 const models = [
   UsersModel,
@@ -139,19 +133,8 @@ const models = [
 
 const sequelize = new Sequelize({
   ...DBConfig,
-  database:
-    process.env.NODE_ENV === 'test'
-      ? `${DBConfig.database}-${process.env.JEST_WORKER_ID}`
-      : (DBConfig.database as string),
   models,
-  // Prod: a single dashboard load fans out several stats requests at once, so
-  // keep enough warm connections (`min`) and let burst connections linger
-  // (`idle`) — establishing a physical Postgres connection is slow and
-  // otherwise happens in the middle of user requests.
-  pool:
-    process.env.NODE_ENV === 'test'
-      ? { max: 50, min: 0, evict: 10_000 }
-      : { max: 50, min: 10, idle: 30_000, evict: 60_000 },
+  pool: databasePool(),
   // TCP keepalive stops idle pooled connections from being silently dropped by
   // intermediate networking (Docker NAT/proxy) — a dead connection is only
   // discovered at checkout, forcing a slow reconnect inside a request.
@@ -162,10 +145,6 @@ const sequelize = new Sequelize({
 // Opt-in (PERF_DEBUG=true): count + time each query against the in-flight request.
 if (isPerfDebugEnabled) {
   registerPerfQueryHooks(sequelize);
-}
-
-if (process.env.NODE_ENV === 'development') {
-  console.log('DBConfig', DBConfig);
 }
 
 connection.sequelize = sequelize;

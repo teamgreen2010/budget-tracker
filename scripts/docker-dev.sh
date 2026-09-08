@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
 # Wrapper around `docker compose` for the dev environment that makes every git
-# worktree run its own isolated stack (containers, volumes/DB, host ports).
+# worktree run its own isolated stack (containers, external databases, host ports).
 #
 # How it works:
 #   - The main checkout keeps the compose project name `dev` and the default
-#     ports from .env.development, so nothing changes there (existing volumes
-#     and DB data stay attached).
+#     ports from .env.development. PostgreSQL is managed by shared-postgres.
 #   - A linked worktree gets a unique compose project name derived from its
 #     directory name, and a set of free host ports. The ports plus all
 #     port-derived env vars (VITE_APP_API_HTTP, ALLOWED_ORIGINS, BETTER_AUTH_URL,
@@ -17,8 +16,7 @@
 #     without distinct prefixes a login in one worktree overwrites another's
 #     session cookie. The main checkout keeps the default prefix (bt_auth).
 #
-# Custom ports: pass FRONTEND_PORT / BACKEND_PORT (and optionally DB_PORT,
-# REDIS_PORT, CURRENCY_RATES_PORT, PGADMIN_PORT) on the first run, or any run —
+# Custom ports: pass FRONTEND_PORT / BACKEND_PORT (and optionally REDIS_PORT, CURRENCY_RATES_PORT, PGADMIN_PORT) on the first run, or any run —
 # explicit values regenerate .env.development.local:
 #   FRONTEND_PORT=9100 BACKEND_PORT=9081 npm run docker:dev
 # To re-roll auto-assigned ports, delete .env.development.local and rerun.
@@ -39,7 +37,7 @@ if [[ ! -f "$BASE_ENV" ]]; then
 fi
 
 read_var() { # read_var FILE NAME -> value (last assignment wins, like dotenv)
-  grep -E "^$2=" "$1" | tail -1 | cut -d= -f2- || true
+  grep -E "^$2=" "$1" 2>/dev/null | tail -1 | cut -d= -f2- || true
 }
 
 port_free() { # true when nothing listens on 127.0.0.1:$1
@@ -53,8 +51,7 @@ GIT_DIR="$(git -C "$ROOT" rev-parse --git-dir 2>/dev/null || echo .git)"
 GIT_COMMON_DIR="$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null || echo .git)"
 
 if [[ "$GIT_DIR" == "$GIT_COMMON_DIR" ]]; then
-  # Main checkout: keep the historical project name so existing containers and
-  # volumes (dev_db_data etc.) stay attached.
+  # Main checkout: keep the historical project name for application resources.
   PROJECT="dev"
   IS_MAIN=1
 else
@@ -64,12 +61,12 @@ fi
 
 # --- Generate .env.development.local when needed ------------------------------
 EXPLICIT_PORTS=0
-[[ -n "${FRONTEND_PORT:-}${BACKEND_PORT:-}${DB_PORT:-}${REDIS_PORT:-}${CURRENCY_RATES_PORT:-}${PGADMIN_PORT:-}" ]] && EXPLICIT_PORTS=1
+[[ -n "${FRONTEND_PORT:-}${BACKEND_PORT:-}${REDIS_PORT:-}${CURRENCY_RATES_PORT:-}${PGADMIN_PORT:-}" ]] && EXPLICIT_PORTS=1
 
 NEEDS_LOCAL_ENV=0
 if [[ "$EXPLICIT_PORTS" == 1 ]]; then
   NEEDS_LOCAL_ENV=1 # explicit ports always regenerate
-elif [[ "$IS_MAIN" == 0 && ! -f "$LOCAL_ENV" ]]; then
+elif [[ "$IS_MAIN" == 0 ]] && { [[ ! -f "$LOCAL_ENV" ]] || [[ -z "$(read_var "$LOCAL_ENV" APPLICATION_DB_DATABASE)" ]]; }; then
   NEEDS_LOCAL_ENV=1 # first run in a worktree: auto-assign
 fi
 
@@ -77,16 +74,16 @@ if [[ "$NEEDS_LOCAL_ENV" == 1 ]]; then
   BASE_BE="$(read_var "$BASE_ENV" APPLICATION_PORT)"
   BASE_FE="$(read_var "$BASE_ENV" PORT)"
 
-  # Auto-assignment uses a contiguous block of 6 ports: a slot is picked
+  # Auto-assignment uses a contiguous block of 5 ports: a slot is picked
   # deterministically from the project name, then probed upwards until the
   # whole block is free.
   AUTO_BASE=""
-  if [[ -z "${FRONTEND_PORT:-}" || -z "${BACKEND_PORT:-}" || -z "${DB_PORT:-}" || -z "${REDIS_PORT:-}" || -z "${CURRENCY_RATES_PORT:-}" || -z "${PGADMIN_PORT:-}" ]]; then
+  if [[ -z "${FRONTEND_PORT:-}" || -z "${BACKEND_PORT:-}" || -z "${REDIS_PORT:-}" || -z "${CURRENCY_RATES_PORT:-}" || -z "${PGADMIN_PORT:-}" ]]; then
     slot=$(($(printf %s "$PROJECT" | cksum | cut -d' ' -f1) % 200))
     for _ in $(seq 0 199); do
       candidate=$((18000 + slot * 10))
       ok=1
-      for i in 0 1 2 3 4 5; do
+      for i in 0 1 2 3 4; do
         port_free $((candidate + i)) || { ok=0; break; }
       done
       if [[ "$ok" == 1 ]]; then
@@ -103,10 +100,9 @@ if [[ "$NEEDS_LOCAL_ENV" == 1 ]]; then
 
   FE="${FRONTEND_PORT:-$((AUTO_BASE + 0))}"
   BE="${BACKEND_PORT:-$((AUTO_BASE + 1))}"
-  DB="${DB_PORT:-$((AUTO_BASE + 2))}"
-  REDIS="${REDIS_PORT:-$((AUTO_BASE + 3))}"
-  CUR="${CURRENCY_RATES_PORT:-$((AUTO_BASE + 4))}"
-  PGA="${PGADMIN_PORT:-$((AUTO_BASE + 5))}"
+  REDIS="${REDIS_PORT:-$((AUTO_BASE + 2))}"
+  CUR="${CURRENCY_RATES_PORT:-$((AUTO_BASE + 3))}"
+  PGA="${PGADMIN_PORT:-$((AUTO_BASE + 4))}"
 
   rewrite_ports() { # swap the base frontend/backend ports inside URL-ish vars
     printf %s "$1" | sed -e "s/:${BASE_BE}/:${BE}/g" -e "s/:${BASE_FE}/:${FE}/g"
@@ -118,13 +114,23 @@ if [[ "$NEEDS_LOCAL_ENV" == 1 ]]; then
   ENABLE_BANKING_REDIRECT_URL="$(rewrite_ports "$(read_var "$BASE_ENV" ENABLE_BANKING_REDIRECT_URL)")"
   ALLOWED_ORIGINS="$(read_var "$BASE_ENV" ALLOWED_ORIGINS),https://localhost:${FE},https://127.0.0.1:${FE}"
 
+  # Port regeneration must not discard provisioned database credentials.
+  DB_OVERRIDES=""
+  if [[ -f "$LOCAL_ENV" ]]; then
+    DB_OVERRIDES=$(grep -E '^(APPLICATION_DB_|SHARED_POSTGRES_NETWORK=)' "$LOCAL_ENV" || true)
+  fi
+  if [[ "$IS_MAIN" == 0 ]] && [[ -z "$(read_var "$LOCAL_ENV" APPLICATION_DB_DATABASE)" ]]; then
+    DB_NAME="bt_dev_$(printf %s "$ROOT" | sha256sum | cut -c1-12)"
+    DB_OVERRIDES=$(printf 'APPLICATION_DB_DATABASE=%s\nAPPLICATION_DB_USERNAME=%s\nAPPLICATION_DB_PASSWORD=__REPLACE_ME__' "$DB_NAME" "$DB_NAME")
+  fi
+  umask 077
   cat > "$LOCAL_ENV" <<EOF
 # Generated by scripts/docker-dev.sh — per-worktree dev stack overrides.
 # Safe to edit; delete the file to re-generate with fresh auto-assigned ports.
 COMPOSE_PROJECT_NAME=${PROJECT}
+${DB_OVERRIDES}
 PORT=${FE}
 APPLICATION_PORT=${BE}
-MAP_DB_PORT_TO_OS_PORT=${DB}
 MAP_REDIS_PORT_TO_OS_PORT=${REDIS}
 MAP_CURRENCY_RATES_PORT_TO_OS_PORT=${CUR}
 MAP_PGADMIN_PORT_TO_OS_PORT=${PGA}
@@ -138,6 +144,16 @@ EOF
 
   echo "Generated $LOCAL_ENV" >&2
 fi
+
+# Refuse legacy worktrees that would otherwise share the main database.
+case "${1:-}" in
+  up | restart)
+    if [[ "$IS_MAIN" == 0 ]] && [[ "$(read_var "$LOCAL_ENV" APPLICATION_DB_DATABASE)" == "$(read_var "$BASE_ENV" APPLICATION_DB_DATABASE)" ]]; then
+      echo 'Configure a separately provisioned worktree database in .env.development.local.' >&2
+      exit 1
+    fi
+    ;;
+esac
 
 # --- Ensure SSL certs exist ----------------------------------------------------
 # certs/ is gitignored, so fresh worktrees don't have it. Without certs Vite and

@@ -16,6 +16,9 @@ This guide will walk you through setting up the Budget Tracker project on your l
 
 ## Prerequisites
 
+Start `~/repos/shared-postgres` and provision a dedicated application database first.
+Follow the [database setup and migration guide](../self-hosting/docs/external-postgres.md).
+
 ### Required Software
 
 - **Node.js**: v23.10.0
@@ -85,7 +88,7 @@ npm run docker:dev
 
 This will:
 
-- Build and start all Docker containers (backend, frontend, PostgreSQL, Redis, currency-rates-api, pgAdmin)
+- Build and start all Docker containers (backend, frontend, Redis, currency-rates-api, pgAdmin; PostgreSQL must already be running)
 - Backend will be available at `https://localhost:8081`
 - Frontend will be available at `https://localhost:8100`
 - pgAdmin will be available at `http://localhost:8001`
@@ -110,12 +113,12 @@ npm run docker:dev:migrate
 
 ### Running From Multiple Git Worktrees
 
-`npm run docker:dev` goes through `scripts/docker-dev.sh`, which isolates each git worktree into its own Docker Compose project (separate containers, volumes/database, and host ports), so several worktrees can run dev stacks simultaneously.
+`npm run docker:dev` goes through `scripts/docker-dev.sh`, which isolates each git worktree into its own Docker Compose project (separate containers, independently provisioned databases, and host ports), so several worktrees can run dev stacks simultaneously.
 
 - The **main checkout** keeps the default ports above and its existing volumes.
 - A **linked worktree** gets free ports auto-assigned on first run (in the 18000+ range) and written to `.env.development.local` (gitignored), together with the derived URLs (`VITE_APP_API_HTTP`, `ALLOWED_ORIGINS`, etc.). The exact URLs are printed on every run.
-- To pick ports yourself: `FRONTEND_PORT=9100 BACKEND_PORT=9081 npm run docker:dev` (also supported: `DB_PORT`, `REDIS_PORT`, `CURRENCY_RATES_PORT`, `PGADMIN_PORT`). Explicit values regenerate `.env.development.local`.
-- To re-roll auto-assigned ports, delete `.env.development.local` and run again.
+- To pick ports yourself: `FRONTEND_PORT=9100 BACKEND_PORT=9081 npm run docker:dev` (also supported: `REDIS_PORT`, `CURRENCY_RATES_PORT`, `PGADMIN_PORT`). Explicit values regenerate `.env.development.local`.
+- Explicit port changes preserve database overrides. Keep a private copy of database credentials before deleting `.env.development.local`.
 
 Each worktree needs its own `.env.development` copy (the file is gitignored).
 
@@ -280,12 +283,12 @@ Key environment variables in `.env.development`:
 
 **Database Configuration:**
 
-- `APPLICATION_DB_HOST`: PostgreSQL host. Default to `db`. Uses service name defined in the `/docker/dev/docker-compose.yml`.
+- `APPLICATION_DB_HOST`: PostgreSQL host. Use `shared-postgres` in containers and `127.0.0.1` on the host.
 - `APPLICATION_DB_PORT`: PostgreSQL port
 - `APPLICATION_DB_USERNAME`: Database username (define yours)
 - `APPLICATION_DB_PASSWORD`: Database password (define yours)
 - `APPLICATION_DB_DATABASE`: Database name (define yours)
-- `APPLICATION_DB_DIALECT`: Database dialect, default to `postgres`. Used by Sequelize. Details: https://sequelize.org/docs/v6/other-topics/dialect-specific-things/. If you wanna change it, keep in mind that different DBs support different functionality. This project is written with a full support for Postgres, other DBs support is not guaranteed
+- `APPLICATION_DB_DIALECT`: Database dialect; must be `postgres`.
 - `DB_QUERY_LOGGING`: Enable SQL query logging (true/false)
 
 **Redis Configuration:**
@@ -380,10 +383,14 @@ npm run storybook
 
 ## Testing
 
-Running tests requires creating `.env.test` file which should mostly looks the same as the `.env.development` with a few critical changes. Use following values for tests:
+Tests require an independently running shared-postgres server and its allocation tooling.
+Each worker receives a dedicated database and role through a private manifest.
+
+Copy `.env.test.example` to `.env.test` for CI-compatible test settings, including `ADMIN_USERS=test1`.
+Database credentials are supplied by the isolated worker manifest. Relevant settings:
 
 ```yml
-APPLICATION_DB_HOST=test-db
+APPLICATION_DB_HOST=shared-postgres
 APPLICATION_REDIS_HOST=test-redis
 
 # define how many Jest workers should be used for parallel tests execution

@@ -35,15 +35,14 @@ services:
     image: letehaha/budget-tracker-be:pr-${PR_NUMBER}
     container_name: preview-pr-${PR_NUMBER}-backend
     restart: unless-stopped
-    env_file: .env
+    env_file: [.env, .database.env]
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
     networks:
       - dokploy-network
       - internal
+      - shared-postgres
     labels:
       - 'traefik.enable=true'
       # HTTP → HTTPS redirect (API)
@@ -59,24 +58,6 @@ services:
       - 'traefik.http.routers.preview-pr-${PR_NUMBER}-be.tls.certresolver=letsencrypt'
       - 'traefik.http.services.preview-pr-${PR_NUMBER}-be.loadbalancer.server.port=8080'
 
-  db:
-    image: postgres:16
-    container_name: preview-pr-${PR_NUMBER}-db
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=preview
-      - POSTGRES_PASSWORD=${PREVIEW_DB_PASSWORD}
-      - POSTGRES_DB=budget_tracker_preview
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    networks:
-      - internal
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U preview -d budget_tracker_preview']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7
     container_name: preview-pr-${PR_NUMBER}-redis
@@ -85,10 +66,10 @@ services:
       - internal
 
 networks:
+  shared-postgres:
+    external: true
+    name: ${SHARED_POSTGRES_NETWORK:-shared-postgres}
   dokploy-network:
     external: true
   internal:
     name: preview-pr-${PR_NUMBER}-internal
-
-volumes:
-  db_data:

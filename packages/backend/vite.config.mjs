@@ -33,6 +33,8 @@ export default defineConfig({
   ],
   build: {
     target: 'node23',
+    // Connection settings are also consumed directly by Node/Sequelize CLI.
+    commonjsOptions: { include: [/node_modules/, /config[\\/]db[\\/]/] },
     outDir: 'dist',
     lib: {
       entry: {

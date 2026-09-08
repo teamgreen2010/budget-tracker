@@ -6,6 +6,9 @@
 # origin. Point whatever reverse proxy you already run (Nginx Proxy Manager,
 # npmplus, Caddy, Traefik, or none) at http://HOST:${HTTP_PORT:-8080}.
 #
+# PostgreSQL must already be running in shared-postgres with a provisioned app database.
+# See docs/external-postgres.md before upgrading an existing installation.
+#
 # Quickstart (from this folder):
 #   1. cd self-hosting
 #   2. cp .env.example .env   # then fill the REQUIRED section
@@ -33,14 +36,13 @@ services:
   backend:
     image: letehaha/budget-tracker-be:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    networks: [budget-tracker]
+    networks: [budget-tracker, shared-postgres]
     # Internal-only: the frontend container reaches it over the `budget-tracker`
     # network. To expose the API directly on the host (e.g. for a separate
     # api.* vhost), uncomment the ports block below.
     expose: ['${APPLICATION_PORT:-8081}']
     # ports: ['127.0.0.1:${API_HOST_PORT:-8081}:${APPLICATION_PORT:-8081}']
     depends_on:
-      db: { condition: service_healthy }
       redis: { condition: service_healthy }
       currency-rates-api: { condition: service_healthy }
     env_file: .env
@@ -109,25 +111,6 @@ services:
       CSP_EXTRA_ANALYTICS: ${CSP_EXTRA_ANALYTICS:-}
     logging: *default-logging
 
-  db:
-    image: postgres:16
-    restart: unless-stopped
-    networks: [budget-tracker]
-    volumes: ['db_data:/var/lib/postgresql/data']
-    # Internal-only: nothing on the host needs Postgres. For admin access
-    # (psql, backups) uncomment the ports line below — it binds to localhost
-    # only, so it is never reachable from outside the machine.
-    ports: ['127.0.0.1:${DB_HOST_PORT:-5432}:5432']
-    environment:
-      - POSTGRES_USER=${APPLICATION_DB_USERNAME}
-      - POSTGRES_PASSWORD=${APPLICATION_DB_PASSWORD}
-      - POSTGRES_DB=${APPLICATION_DB_DATABASE}
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7
     restart: unless-stopped
@@ -168,6 +151,9 @@ services:
     logging: *default-logging
 
 networks:
+  shared-postgres:
+    external: true
+    name: ${SHARED_POSTGRES_NETWORK:-shared-postgres}
   budget-tracker:
     # Fixed name (instead of the compose-project-prefixed default) so external
     # reverse-proxy containers can join it by a stable, unambiguous name.
@@ -175,6 +161,5 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
   redis_data:
   currency_rates_data:

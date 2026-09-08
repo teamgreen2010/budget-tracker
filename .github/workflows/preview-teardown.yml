@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [closed, unlabeled]
 
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 permissions:
   pull-requests: write
 
@@ -28,13 +32,14 @@ jobs:
       - name: Tear down preview environment
         uses: appleboy/ssh-action@v1.2.5
         env:
+          SHARED_POSTGRES_DIR: ${{ vars.SHARED_POSTGRES_DIR }}
           VPS_PREVIEW_BASE_PATH: ${{ secrets.VPS_PREVIEW_BASE_PATH }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_KEY_PASSPHRASE }}
-          envs: PR_NUMBER,VPS_PREVIEW_BASE_PATH
+          envs: PR_NUMBER,VPS_PREVIEW_BASE_PATH,SHARED_POSTGRES_DIR
           script: |
             set -e
             PR_DIR="$VPS_PREVIEW_BASE_PATH/pr-$PR_NUMBER"
@@ -43,13 +48,10 @@ jobs:
               cd "$PR_DIR"
 
               export PR_NUMBER
-              # Read PREVIEW_DB_PASSWORD from .env (needed for compose interpolation)
-              if [ -f .env ]; then
-                export PREVIEW_DB_PASSWORD=$(grep '^PREVIEW_DB_PASSWORD=' .env | cut -d'=' -f2-)
-              fi
-
               # Stop and remove containers, volumes, and orphans
               docker compose -f docker-compose.preview.yml -p preview-pr-$PR_NUMBER down -v --remove-orphans 2>/dev/null || true
+
+              python3 "${SHARED_POSTGRES_DIR:-$HOME/repos/shared-postgres}/scripts/allocations.py" release "bt_preview_${PR_NUMBER}"
 
               # Remove the PR directory
               rm -rf "$PR_DIR"
@@ -63,6 +65,7 @@ jobs:
 
               echo "Preview environment for PR #$PR_NUMBER torn down successfully!"
             else
+              python3 "${SHARED_POSTGRES_DIR:-$HOME/repos/shared-postgres}/scripts/allocations.py" release "bt_preview_${PR_NUMBER}"
               echo "No preview environment found for PR #$PR_NUMBER"
             fi
 

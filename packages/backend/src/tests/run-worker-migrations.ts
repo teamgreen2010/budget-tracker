@@ -1,11 +1,13 @@
 import path from 'path';
 import { Sequelize } from 'sequelize-typescript';
 
+import { databaseConfig } from '../../config/db/connection';
+
 /**
- * Standalone script to run migrations on the template database.
- * Called by setup-e2e-tests.sh before creating worker databases.
+ * Standalone script to run migrations on the worker database.
+ * Called by setup-e2e-tests.sh after infrastructure provisions worker databases.
  *
- * Usage: npx ts-node src/tests/run-template-migrations.ts
+ * Usage: npx ts-node src/tests/run-worker-migrations.ts
  */
 // Register ts-node with transpileOnly to avoid TypeScript errors across migration files
 // Each migration file is an independent module, but ts-node in full type-check mode
@@ -21,22 +23,22 @@ require('ts-node').register({
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Umzug = require('umzug');
 
-const DATABASE_NAME = `${process.env.APPLICATION_DB_DATABASE}-template`;
+if (process.env.NODE_ENV !== 'test' || !process.env.TEST_DATABASE_MANIFEST) {
+  throw new Error('Worker migrations require NODE_ENV=test and an isolated database manifest');
+}
+
+const DB_CONFIG = databaseConfig({ validate: true });
+const DATABASE_NAME = DB_CONFIG.database;
 
 console.log('='.repeat(60));
-console.log('TEMPLATE MIGRATION RUNNER v2 - with TypeScript support');
+console.log('WORKER MIGRATION RUNNER - with TypeScript support');
 console.log('='.repeat(60));
 
 async function runMigrations() {
-  console.log(`Running migrations on template database: ${DATABASE_NAME}`);
+  console.log(`Running migrations on worker database: ${DATABASE_NAME}`);
 
   const sequelize = new Sequelize({
-    host: process.env.APPLICATION_DB_HOST,
-    port: parseInt(process.env.APPLICATION_DB_PORT as string, 10),
-    username: process.env.APPLICATION_DB_USERNAME,
-    password: process.env.APPLICATION_DB_PASSWORD,
-    database: DATABASE_NAME,
-    dialect: 'postgres',
+    ...DB_CONFIG,
     logging: false,
   });
 
@@ -69,15 +71,11 @@ async function runMigrations() {
     console.log('[DEBUG] Currencies count:', (currenciesResult as { count: string }[])[0]?.count);
     console.log('[DEBUG] ExchangeRates count:', (exchangeRatesResult as { count: string }[])[0]?.count);
 
-    // Close the connection and wait for it to fully complete
-    // This is critical because PostgreSQL requires no active connections
-    // to the template database when creating databases from it
+    const exchangeRateCount = Number((exchangeRatesResult as { count: string }[])[0]?.count);
+    if (!Number.isFinite(exchangeRateCount) || exchangeRateCount < 10000) {
+      throw new Error('Worker database has insufficient seeded exchange rates');
+    }
     await sequelize.close();
-    console.log('Connection closed, template database ready');
-
-    // Give PostgreSQL a moment to fully release the connection
-    // before the setup script tries to clone from this template
-    await new Promise((resolve) => setTimeout(resolve, 500));
     process.exit(0);
   } catch (error) {
     console.error('Migration failed:', error);
