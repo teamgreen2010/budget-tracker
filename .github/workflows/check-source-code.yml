@@ -90,7 +90,7 @@ jobs:
       matrix:
         # typecheck is the only type-check gate for backend code: the e2e/unit
         # jest transform runs ts-jest with isolatedModules (transpile-only).
-        task: [lint, 'test:unit', 'test:lint-rules', knip, typecheck]
+        task: [lint, 'test:unit', 'test:lint-rules', 'test:db-config', knip, typecheck]
     steps:
       - name: Skip – no backend changes
         if: needs.detect-changes.outputs.frontend-only == 'true'
@@ -106,11 +106,11 @@ jobs:
           envkey_APPLICATION_HOST: 127.0.0.1
           envkey_APPLICATION_PORT: 8081
           envkey_APPLICATION_JWT_SECRET: test-jwt
-          # docker/test/backend/docker-compose.yml DB's service name
-          envkey_APPLICATION_DB_HOST: test-db
+          # External PostgreSQL; integration workers use a private allocation manifest
+          envkey_APPLICATION_DB_HOST: shared-postgres
           envkey_APPLICATION_DB_USERNAME: test
           envkey_APPLICATION_DB_PASSWORD: test
-          envkey_APPLICATION_DB_DATABASE: budget-tracker_test
+          envkey_APPLICATION_DB_DATABASE: budget_tracker_test
           envkey_APPLICATION_DB_PORT: 5432
           envkey_APPLICATION_DB_DIALECT: postgres
           # docker/test/backend/docker-compose.yml redis' service name
@@ -160,7 +160,16 @@ jobs:
   backend-e2e:
     name: Backend e2e tests (shard ${{ matrix.shardIndex }})
     needs: [prepare-dependencies, detect-changes]
-    runs-on: ubuntu-latest
+    # The environment must require reviewer approval before PR code runs here.
+    environment: database-integration
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: [self-hosted, linux, shared-postgres]
+    env:
+      TEST_DB_ALLOCATION: bt_ci_${{ github.repository_id }}_${{ github.run_id }}_${{ github.run_attempt }}_${{ matrix.shardIndex }}
+      TEST_RUNNER_IMAGE: bt-e2e:${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shardIndex }}
+      TEST_RUNNER_PREBUILT: 'true'
     strategy:
       # A failing shard must not cancel the others – each covers different tests
       fail-fast: false
@@ -182,11 +191,11 @@ jobs:
           envkey_APPLICATION_HOST: 127.0.0.1
           envkey_APPLICATION_PORT: 8081
           envkey_APPLICATION_JWT_SECRET: test-jwt
-          # docker/test/backend/docker-compose.yml DB's service name
-          envkey_APPLICATION_DB_HOST: test-db
+          # External PostgreSQL; integration workers use a private allocation manifest
+          envkey_APPLICATION_DB_HOST: shared-postgres
           envkey_APPLICATION_DB_USERNAME: test
           envkey_APPLICATION_DB_PASSWORD: test
-          envkey_APPLICATION_DB_DATABASE: budget-tracker_test
+          envkey_APPLICATION_DB_DATABASE: budget_tracker_test
           envkey_APPLICATION_DB_PORT: 5432
           envkey_APPLICATION_DB_DIALECT: postgres
           # docker/test/backend/docker-compose.yml redis' service name
@@ -229,18 +238,6 @@ jobs:
           done
           echo "MS Money fixtures could not be downloaded after 3 attempts"
           exit 1
-      # Restores a pg_dump of the fully-migrated template DB so setup-e2e-tests.sh
-      # can pg_restore it instead of running every migration (~75s per shard). The
-      # key hashes the migrations plus the data files they seed from; on a miss the
-      # script runs migrations and writes the dump for this step to save. All
-      # shards share the key: on a miss every green shard tries to save, the first
-      # wins and the rest log a harmless "unable to reserve cache" warning.
-      - name: Cache migrated template DB dump
-        if: needs.detect-changes.outputs.frontend-only != 'true'
-        uses: actions/cache@v4
-        with:
-          path: packages/backend/.e2e-template-cache
-          key: template-db-pg16-${{ hashFiles('packages/backend/src/migrations/**', 'packages/backend/src/tests/test-exchange-rates.json', 'packages/backend/src/resources/mcc-codes.json') }}
       # Prebuild the compose test-runner image with GHA layer caching — compose's
       # own `up --build` cannot use the buildx cache. Must run after the fixtures
       # download: the image COPYs packages/backend, fixtures included. When
@@ -256,7 +253,7 @@ jobs:
           context: .
           file: docker/test/backend/Dockerfile
           load: true
-          tags: bt-e2e-test-runner:ci
+          tags: ${{ env.TEST_RUNNER_IMAGE }}
           cache-from: type=gha
           # Only one shard uploads the layer cache; the other three would race to
           # write identical content.
@@ -267,9 +264,18 @@ jobs:
       # sets jest.retryTimes(2) on CI, so a red step here already failed 3 times.
       - name: Run e2e tests
         if: needs.detect-changes.outputs.frontend-only != 'true'
-        env:
-          TEST_RUNNER_IMAGE: bt-e2e-test-runner:ci
         run: npm run test:e2e -w packages/backend -- --shard=${{ matrix.shardIndex }}/${{ env.BACKEND_E2E_SHARD_TOTAL }}
+
+      - name: Release test databases and containers
+        if: always() && needs.detect-changes.outputs.frontend-only != 'true'
+        shell: bash
+        run: |
+          TEST_COMPOSE_PROJECT="${TEST_DB_ALLOCATION//_/-}"
+          export TEST_DATABASE_MANIFEST="$GITHUB_WORKSPACE/.test-databases/$TEST_DB_ALLOCATION.json"
+          docker compose -p "$TEST_COMPOSE_PROJECT" -f docker/test/backend/docker-compose.yml --env-file .env.test down -v --remove-orphans || true
+          python3 "${SHARED_POSTGRES_DIR:-$HOME/repos/shared-postgres}/scripts/allocations.py" release "$TEST_DB_ALLOCATION"
+          rm -f "$TEST_DATABASE_MANIFEST"
+          docker image rm "$TEST_RUNNER_IMAGE" || true
 
   backend-docker-build:
     name: Build backend Docker image

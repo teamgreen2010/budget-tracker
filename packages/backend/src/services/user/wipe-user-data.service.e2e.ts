@@ -173,9 +173,9 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     // chain on PT, tripped on the dangling reference, and aborted the whole wipe.
     //
     // The orphan state isn't reachable through the public API (FK validation blocks
-    // INSERT with a non-existent transactionId). Reproduce it by toggling Postgres'
-    // session_replication_role to 'replica' for the insert — same row shape that prior
-    // crashed wipes left behind.
+    // INSERT with a non-existent transactionId). As the table owner, temporarily
+    // remove only that FK and restore it NOT VALID in the same transaction. This
+    // preserves enforcement for new writes without needing superuser privileges.
     const userBefore = await Users.findOne({ where: {} });
     const userId = userBefore!.id;
 
@@ -184,27 +184,49 @@ describe('User data wipe (POST /user/wipe-data)', () => {
 
     const orphanTxId = randomUUID();
     const orphanPtId = randomUUID();
-    await connection.sequelize.query(
-      `SET session_replication_role = 'replica';
-       INSERT INTO "PortfolioTransfers"
-         (id, "userId", "fromAccountId", "toPortfolioId", amount, "refAmount", "currencyCode", date, "transactionId", "createdAt", "updatedAt")
-       VALUES
-         (:ptId, :userId, :accountId, :portfolioId, 100, 100, 'USD', '2026-01-01', :txId, NOW(), NOW());
-       SET session_replication_role = 'origin';`,
-      {
-        replacements: {
-          ptId: orphanPtId,
-          userId,
-          accountId: account.id,
-          portfolioId: portfolio.id,
-          txId: orphanTxId,
+    const [foreignKeys] = await connection.sequelize.query(`
+      SELECT c.conname, pg_get_constraintdef(c.oid) AS definition
+      FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+      WHERE c.conrelid = '"PortfolioTransfers"'::regclass
+        AND c.contype = 'f' AND a.attname = 'transactionId'
+    `);
+    expect(foreignKeys).toHaveLength(1);
+    const foreignKey = (foreignKeys as { conname: string; definition: string }[])[0]!;
+    const constraint = `"${foreignKey.conname.replace(/"/g, '""')}"`;
+    await connection.sequelize.transaction(async (transaction) => {
+      await connection.sequelize.query(`ALTER TABLE "PortfolioTransfers" DROP CONSTRAINT ${constraint}`, {
+        transaction,
+      });
+      await connection.sequelize.query(
+        `INSERT INTO "PortfolioTransfers"
+           (id, "userId", "fromAccountId", "toPortfolioId", amount, "refAmount", "currencyCode", date, "transactionId", "createdAt", "updatedAt")
+         VALUES (:ptId, :userId, :accountId, :portfolioId, 100, 100, 'USD', '2026-01-01', :txId, NOW(), NOW())`,
+        {
+          transaction,
+          replacements: {
+            ptId: orphanPtId,
+            userId,
+            accountId: account.id,
+            portfolioId: portfolio.id,
+            txId: orphanTxId,
+          },
         },
-      },
-    );
+      );
+      await connection.sequelize.query(
+        `ALTER TABLE "PortfolioTransfers" ADD CONSTRAINT ${constraint} ${foreignKey.definition} NOT VALID`,
+        { transaction },
+      );
+    });
 
-    const wipeRes = await helpers.wipeUserData();
-    expect(wipeRes.statusCode).toBe(200);
-    expect(await PortfolioTransfers.findAll({ where: { userId } })).toHaveLength(0);
+    try {
+      const wipeRes = await helpers.wipeUserData();
+      expect(wipeRes.statusCode).toBe(200);
+      expect(await PortfolioTransfers.findAll({ where: { userId } })).toHaveLength(0);
+    } finally {
+      await PortfolioTransfers.destroy({ where: { id: orphanPtId }, force: true });
+      await connection.sequelize.query(`ALTER TABLE "PortfolioTransfers" VALIDATE CONSTRAINT ${constraint}`);
+    }
   });
 
   it('converts cross-user transfer legs to out_of_wallet when the owner wipes', async () => {

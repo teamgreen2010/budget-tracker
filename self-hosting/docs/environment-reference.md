@@ -24,7 +24,6 @@ boot; everything else is optional.
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `HTTP_PORT` (`8080`)       | Host port the app is served on; set `127.0.0.1:8080` to make it reachable only from the server itself (when a reverse proxy on the same server fronts the app) |
 | `IMAGE_TAG` (`latest`)     | Image tag to pull; set `sha-<commit>` to pin                                                                                                                   |
-| `DB_HOST_PORT` (`5432`)    | Postgres admin port; used only if you uncomment the db `ports:` line in `docker-compose.yml` (binds to localhost)                                              |
 | `REDIS_HOST_PORT` (`6379`) | Redis admin port; used only if you uncomment the redis `ports:` line in `docker-compose.yml` (binds to localhost)                                              |
 
 ## Traefik overlay only
@@ -134,3 +133,17 @@ which turns on two things:
 
 Setup guide: [setup-guide.md](setup-guide.md) · Troubleshooting:
 [troubleshooting.md](troubleshooting.md)
+
+## External PostgreSQL
+
+| Setting                                                                         | Default / purpose                                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `APPLICATION_DB_HOST`                                                           | `shared-postgres` inside containers; `127.0.0.1` on the host    |
+| `APPLICATION_DB_PORT`                                                           | `5432` inside containers; configured shared host port otherwise |
+| `APPLICATION_DB_DATABASE`, `APPLICATION_DB_USERNAME`, `APPLICATION_DB_PASSWORD` | Independently provisioned project database and role credentials |
+| `SHARED_POSTGRES_NETWORK`                                                       | `shared-postgres`; pre-existing external Docker network         |
+| `APPLICATION_DB_POOL_MAX`, `APPLICATION_DB_POOL_MIN`                            | `10` and `0`; maximum defaults to `5` for tests                 |
+| `SHARED_POSTGRES_DIR`                                                           | `$HOME/repos/shared-postgres`; host operational tooling only    |
+
+See [external PostgreSQL operations](external-postgres.md). No database host port
+is published by budget-tracker.

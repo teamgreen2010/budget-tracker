@@ -5,6 +5,9 @@
 
 A personal budget tracking application. Track your balances and transactions with bank connections or manual entry, categorize and analyze expenses and income, and many more.
 
+PostgreSQL is an external dependency managed by `~/repos/shared-postgres`.
+See the [setup and migration runbook](self-hosting/docs/external-postgres.md).
+
 ## Local Application setup
 
 To set up the application locally, please refer to the [instructions here](./docs/application-setup.md).

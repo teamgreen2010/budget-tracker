@@ -6,14 +6,14 @@ This directory contains the Docker configuration for local development with hot 
 
 - **backend**: Node.js backend API (port defined in .env)
 - **frontend**: Vue.js frontend (port defined in .env)
-- **db**: PostgreSQL 16 database
+- **External dependency**: PostgreSQL 17 from `~/repos/shared-postgres`
 - **redis**: Redis 7 cache
 - **currency-rates-api**: Self-hosted exchange rates service (ECB + NBU)
 - **pgadmin**: PostgreSQL admin interface (port 8001)
 
 ## Quick Start (Online Mode)
 
-1. Ensure you have `.env.development` file in the project root
+1. [Provision shared PostgreSQL](../../self-hosting/docs/external-postgres.md), then ensure you have `.env.development` file in the project root
 2. Build and start services:
    ```bash
    npm run docker:dev
@@ -36,7 +36,7 @@ npm run docker:dev:prepare-offline
 This command:
 
 - Builds Docker images with npm dependencies cached
-- Pulls all required base images (postgres:16, redis:7, etc.)
+- Pulls all required base images (redis:7, etc.; PostgreSQL is prepared separately)
 - Caches Node.js base images (node:23.11.0)
 
 ### Using Offline
@@ -97,7 +97,7 @@ npm run docker:dev:logs
 # Rebuild all images from scratch (clears cache)
 npm run docker:dev:rebuild
 
-# Remove all data (fresh start, removes volumes)
+# Remove application volumes (shared database data is retained)
 npm run docker:dev:clean
 
 # Database migrations
@@ -117,12 +117,9 @@ lsof -i :3000  # or your configured port
 
 ### Database Issues
 
-To reset the database:
-
-```bash
-npm run docker:dev:clean  # Removes volumes and stops services
-npm run docker:dev        # Start fresh
-```
+Check that shared-postgres is running and the provisioned credentials and external network match.
+To reset development data, provision a new database and update your local overrides.
+Application cleanup never removes shared PostgreSQL data.
 
 ### Offline Mode Not Working
 

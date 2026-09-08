@@ -83,11 +83,14 @@ Typically seen when opening the app via a LAN IP or a custom host. Two causes:
   the http value is also an origin mismatch. Set both vars to the public
   `https://` URL, then `up -d`.
 
-## Backend logs "ECONNREFUSED" to db
+## Backend cannot connect to PostgreSQL
 
-Postgres can take 10–30s on first boot to initialise its data files. The
-backend's `depends_on: db: { condition: service_healthy }` normally handles
-this – if you've customised the compose file, make sure that clause is intact.
+Start shared-postgres independently, verify its health, and check that the backend
+joins the same `SHARED_POSTGRES_NETWORK`. Container connections use
+`shared-postgres:5432`; host connections use the loopback published port.
+The authenticated startup check retries transient failures for 60 seconds.
+Wrong credentials or a missing provisioned database fail promptly. Correct the
+settings and restart the backend; see [the runbook](external-postgres.md).
 
 ## "CSP blocked: connect-src" in the browser console
 

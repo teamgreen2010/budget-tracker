@@ -1,48 +1,4 @@
 services:
-  test-db:
-    image: postgres:16
-    restart: always
-    volumes: ['test_db_data:/var/lib/postgresql/data']
-    environment:
-      - POSTGRES_USER=${APPLICATION_DB_USERNAME}
-      - POSTGRES_PASSWORD=${APPLICATION_DB_PASSWORD}
-      - POSTGRES_DB=${APPLICATION_DB_DATABASE}
-    env_file: ../../../.env.test
-    # Specific less secure setup for tests only to speed them up and reduce chance
-    # of deadlocks
-    # Durability Settings
-    # - fsync=off - Disables forced disk writes, major speed boost
-    # - synchronous_commit=off - Commits don't wait for disk sync
-    # - full_page_writes=off - Reduces WAL (Write-Ahead Log) overhead
-    # Memory Settings
-    # - shared_buffers=256MB - More RAM for caching data pages
-    # - effective_cache_size=512MB - Tells planner about available OS cache
-    # - work_mem=16MB - Memory for sort/hash operations per connection
-    # - maintenance_work_mem=64MB - Memory for maintenance operations
-    # - wal_buffers=16MB - WAL buffer size
-    # Connection & Logging
-    # - max_connections=200 - Supports parallel test execution
-    # - log_statement=none & log_duration=off - Reduces logging overhead
-    # - deadlock_timeout=1s - Faster deadlock detection
-    command: >
-      postgres
-      -c fsync=off
-      -c synchronous_commit=off
-      -c full_page_writes=off
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c shared_buffers=256MB
-      -c effective_cache_size=512MB
-      -c maintenance_work_mem=64MB
-      -c work_mem=16MB
-      -c max_connections=200
-      -c log_statement=none
-      -c log_duration=off
-      -c log_lock_waits=on
-      -c deadlock_timeout=1s
-    labels:
-      - 'com.docker.compose.project=test'
-
   test-redis:
     image: redis:7
     volumes: ['test_redis_data:/data']
@@ -54,6 +10,9 @@ services:
   # If workers get SIGKILL (OOM) or random tests timeout, check:
   #   Docker Desktop → Settings → Resources → Memory (should be 12+ GB)
   test-runner:
+    networks: [default, shared-postgres]
+    volumes:
+      - ${TEST_DATABASE_MANIFEST:?Provision test databases first}:/run/bt-test-databases.json:ro
     # setup-e2e-tests.sh always exports TEST_RUNNER_IMAGE: a per-worktree name
     # locally (compose builds it), the CI-prebuilt buildx tag on CI (no build).
     image: ${TEST_RUNNER_IMAGE:-bt-test-runner}
@@ -61,10 +20,11 @@ services:
       context: ../../..
       dockerfile: docker/test/backend/Dockerfile
     depends_on:
-      - test-db
       - test-redis
     environment:
       - NODE_ENV=test
+      - JEST_WORKERS_AMOUNT=${JEST_WORKERS_AMOUNT:-4}
+      - TEST_DATABASE_MANIFEST=/run/bt-test-databases.json
       # so package `config` will look into the correct place
       - NODE_CONFIG_DIR=./packages/backend/config
       # Jest runs CommonJS here, so --experimental-vm-modules must stay out: with it
@@ -80,5 +40,10 @@ services:
       - 'com.docker.compose.project=test'
 
 volumes:
-  test_db_data:
   test_redis_data:
+
+networks:
+  default: {}
+  shared-postgres:
+    external: true
+    name: ${SHARED_POSTGRES_NETWORK:-shared-postgres}

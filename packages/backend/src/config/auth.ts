@@ -16,6 +16,8 @@ import { APIError, betterAuth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
+import { databaseConfig, databasePool } from '../../config/db/connection';
+
 // Fail-fast: AUTH_ORIGIN must be set in production. Without it, OAuth error
 // redirects, login/consent pages, and trusted origins all fall back to
 // localhost:8100, which would break the auth flow on the live site.
@@ -27,16 +29,16 @@ if (process.env.NODE_ENV === 'production' && !process.env.AUTH_ORIGIN) {
 
 // Create a separate pg Pool for better-auth
 // This is required because better-auth uses raw SQL queries
+const db = databaseConfig();
 const pool = new Pool({
-  host: process.env.APPLICATION_DB_HOST,
-  port: parseInt(process.env.APPLICATION_DB_PORT as string, 10),
-  user: process.env.APPLICATION_DB_USERNAME,
-  password: process.env.APPLICATION_DB_PASSWORD,
-  // In test environment, use per-worker database (same as Sequelize)
-  database:
-    process.env.NODE_ENV === 'test' && process.env.JEST_WORKER_ID
-      ? `${process.env.APPLICATION_DB_DATABASE}-${process.env.JEST_WORKER_ID}`
-      : process.env.APPLICATION_DB_DATABASE,
+  host: db.host,
+  port: db.port,
+  user: db.username,
+  password: db.password,
+  database: db.database,
+  max: databasePool().max,
+  min: databasePool().min,
+  connectionTimeoutMillis: 10000,
 });
 
 // In dev mode, trust the common localhost variants of the frontend port so a

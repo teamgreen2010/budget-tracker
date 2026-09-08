@@ -1,142 +1,29 @@
-# budget-tracker backend
+# Budget-tracker backend
 
-## First run instructions
+Install dependencies with `npm ci`. Create `.env.development` from `.env.template`
+and `.env.test` from `.env.test.example`, then fill the service and API settings.
 
-You need to make sure you have Docker installed. Current instruction is written
-for the Docker v4.34.
+PostgreSQL 17 is an external dependency managed in `~/repos/shared-postgres`.
+Follow the [provisioning and migration runbook](../../self-hosting/docs/external-postgres.md)
+before starting the backend. Use a dedicated database/role for each environment.
 
-### 1. Install dependencies
+Start Docker development with `npm run docker:dev`, then run
+`npm run docker:dev:migrate`. Changes reload through mounted source directories.
+The backend checks authenticated database access before startup; it never starts
+a database server. Worktree database credentials live in `.env.development.local`.
 
-Use `npm ci` to install all the dependencies with correct versions.
+For host development, keep Redis available and override `APPLICATION_DB_HOST` to
+`127.0.0.1` and `APPLICATION_DB_PORT` to the shared host port. Run
+`npm run migrate:dev -w packages/backend` and `npm run dev -w packages/backend`.
+Exported variables take precedence over local and base environment files.
 
-### 2. Create corresponding env variables.
+Development pgAdmin is available on port 8001 by default. Use host
+`shared-postgres`, port 5432, and the provisioned database/role/password; set its
+maintenance database to the application database because project roles cannot
+connect to the cluster maintenance databases.
 
-Project uses different `.env` files for each environment: `.env.development`,
-`.env.production`, `.env.test`.
+`npm run docker:dev:down` stops application containers. `docker:dev:clean` also
+removes application volumes; neither command deletes shared database data.
 
-Locally you only need `.env.development` and `.env.test`.
-You can create it based on the `.env.template`. Just copy `.env.template`, rename it and fill missing
-variables.
-
-**Important.** In the `.env.test` you will need to use another name for the DB,
-since when tests are running, they're automatically filling and cleaning the DB,
-so all your data from the DB used for development might be lost.
-
-### 3. Start dev server
-
-Run `npm run docker:dev` or `npm run docker:dev -- -d` to run it "in background".
-
-It will be working in HMR mode, so any changes to the codebase will be reflected.
-
-### 4. That's it ! 🎉🎉🎉
-
-Now it should be accessible under the port that you defined in the `.env.development` file.
-
-## Documentation
-
-For detailed documentation about the backend services and architecture, see the [`docs/`](./docs/) folder:
-
-- [Exchange Rates System](./docs/exchange-rates.md) - Hybrid exchange rates system (currency-rates-api + fawazahmed0 + ApiLayer)
-
-### Troubleshoting:
-
-1. Sometimes when running `npm run docker:dev` it might stuck running migrations
-   due to DB connection issues. It's a very rare case, but if this happens,
-   _**simply run the command again**_.
-
-### Additional services for local development
-
-#### pgAdmin (DB data viewer)
-
-There's a pgAdmin available under the port `8001`. You can modify configuration for email and password of the dashboard in the env file. On the first setup, after logging in on the dashboard you will see "Add new server". Click on it, give it whatever Name you want.
-
-Under the `Connection` tab you will need to fill a few fields:
-
-- Host name/address – `db` (postgres service name from `docker/dev/docker-compose.yml` file)
-- Username – value from the `APPLICATION_DB_USERNAME` env variable
-- Password - value from the `APPLICATION_DB_PASSWORD` env variable
-
-### Useful command for local development:
-
-1. `npm run docker:dev:down` to stop containers. All the data will still be stored in the DB.
-2. `npm run docker:dev:destroy` stops containers, and _**Completely destroys all the images, container and volumes**_. It means all the data will be erased from the DB. Useful when you want to test new migrations, or DB structure was damaged.
-3. Use `docker:dev:run-in-container -- <some command>` to run any command inside running docker container. For example `docker:dev:run-in-container -- npm run migrate:dev` to run migrations and `docker:dev:run-in-container -- npm run migrate:dev:undo` to undo them.
-
-<hr>
-<hr>
-<hr>
-
-### If you don't want to use Docker
-
-For whatever reason if you don't want not to use Docker, you still need to complete
-first 2 steps described above, and then follow these instructions:
-
-### 3. Setup Postgres
-
-If you can access your user and you know how to create a DB, **you can ignore that section**.
-
-If you don't know how to access your postgres user or DB:
-
-1. Install Postgres.app for all existing postgres version [here](https://postgresapp.com/downloads.html) (it will install all needed Posgres versions).
-2. Open the app, in the interface click on the "+" on the bottom left and add a new V11 server.
-3. Click "Initialize" button from the interface.
-4. If you have error "Post already in use", try to close apps that are using that port, or click on the server V11 in the interface and change port to 5433 (first option is much better)
-5. Connect to default DB user using either
-
-```sh
-psql -h localhost -p 5432 -U postgres -d postgres
-```
-
-or just click on the "postgres" db in the Postgres.app. If you changed port on the previos step, update the port
-
-6. Now run following commands to setup a user (update dumb values with your own):
-
-1. You can omit first two steps if you don't mind using your current user.
-
-```sql
-CREATE USER myuser WITH PASSWORD 'secretpassword';
-```
-
-```sql
-ALTER ROLE myuser SUPERUSER;
-```
-
-```sql
-CREATE DATABASE "budget-tracker";
-```
-
-7. That's it.
-
-### 4. Install Redis (if you don't have one):
-
-1. Install Redis via `brew install redis`
-2. Then `brew services start redis`
-
-### 5. Run migrations
-
-```sh
-npm run migrate:dev
-```
-
-If you have an error running this command, you probably need to install Postgres. Read [the guide below](#setup-postgres).
-
-If you encountered any errors during `npm run migrate:dev`, you can run
-`npm run migrate-undo:dev` to undo migrations. If you still facing issues, you
-can clear the DB using these two commands:
-
-```sh
-drop schema public cascade;
-create schema public;
-```
-
-They will completely clean the DB and you will be able to run migrations again.
-
-### 6. Start dev server
-
-```sh
-npm run dev
-```
-
-### 7. That's it! 🎉🎉🎉
-
-But better use Docker 🙈
+See the [integration test setup](src/tests/README.md) and
+[backend service documentation](docs/).

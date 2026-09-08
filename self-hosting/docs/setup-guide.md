@@ -14,7 +14,7 @@ This guide assumes:
   build-from-source overlay is memory-heavy.
 
 The stack is: the **frontend** (nginx serving the SPA and reverse-proxying
-`/api` to the backend), the **backend** (Node + Express), **Postgres** for
+`/api` to the backend), the **backend** (Node + Express), an independently managed **Postgres** server for
 storage, **Redis** for queues, and the `currency-rates-api` sidecar for
 exchange-rate data. No external API keys are required for core functionality.
 
@@ -30,8 +30,10 @@ flowchart LR
             FE["Frontend<br/>nginx: SPA + /api proxy<br/>:HTTP_PORT → :80"]
             BE["Backend<br/>Node + Express :8081"]
             CR["currency-rates-api<br/>USD-base rates"]
-            DB[("Postgres<br/>db_data volume")]
             RD[("Redis<br/>redis_data volume")]
+        end
+        subgraph shared["External network: shared-postgres"]
+            DB[("PostgreSQL 17<br/>shared-postgres project")]
         end
     end
 
@@ -48,10 +50,10 @@ The frontend container is the single public entrypoint. It serves the SPA and
 proxies `/api/` to the backend over the internal `budget-tracker` network, so the
 browser only ever talks to **one origin** – app and API are same-origin, and
 there is no CORS to configure. Only the frontend's host port
-(`${HTTP_PORT:-8080}`) is published; Postgres, Redis, the backend, and the
-rate-data sidecar are reachable only from the `budget-tracker` network.
+(`${HTTP_PORT:-8080}`) is published by this stack. PostgreSQL is reached over the
+external shared network; its separate infrastructure publishes a loopback-only admin port.
 
-> **Architecture**: the frontend, backend, postgres, and redis images are
+> **Architecture**: the frontend, backend, and redis images are
 > multi-arch and run natively on both `amd64` and `arm64` hosts (Hetzner ARM,
 > Oracle Ampere, AWS Graviton). The `currency-rates-api` sidecar is currently
 > published as `amd64` only, so on an `arm64` host Docker runs it under QEMU
@@ -74,6 +76,9 @@ Reference docs: [reverse proxies](reverse-proxies.md) ·
 ---
 
 ## 1. Prerequisites
+
+Start shared-postgres and provision a database first; follow the
+[external PostgreSQL setup and migration guide](external-postgres.md).
 
 Docker Engine with the Compose plugin must be installed — see the
 [official install guide](https://docs.docker.com/engine/install/) for your
@@ -136,7 +141,7 @@ docker compose up -d
 ```
 
 This pulls the published images (`letehaha/budget-tracker-fe`,
-`letehaha/budget-tracker-be`, `letehaha/currency-rates-api`, `postgres:16`,
+`letehaha/budget-tracker-be`, `letehaha/currency-rates-api`,
 `redis:7`) and starts everything. The backend runs database migrations on boot
 before it starts serving, so its healthcheck stays red for the first
 30–60 seconds – that's expected.
@@ -245,28 +250,16 @@ OOMs, add 2 GB of swap (see [troubleshooting.md](troubleshooting.md)).
 
 ## 5. Backups
 
-The two stateful volumes are `db_data` (Postgres) and `redis_data` (Redis).
-Redis is queue-only – its data is regenerated on the fly, so back up Postgres
-only.
+PostgreSQL storage and backups are owned by shared-postgres. From that checkout:
 
-The single-quoted `$POSTGRES_USER` / `$POSTGRES_DB` below expand **inside the
-db container** (compose sets them there from your `.env`), so the commands work
-from any host shell without exporting anything.
-
-```bash
-# Daily dump
-docker compose exec -T db \
-  sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-  | gzip > "backup-$(date +%F).sql.gz"
+```sh
+python3 scripts/backup.py budget_tracker /absolute/path/backup.dump
+python3 scripts/provision.py budget_tracker_restored budget_tracker_restored
+python3 scripts/restore.py budget_tracker_restored budget_tracker_restored /absolute/path/backup.dump
 ```
 
-Restore:
-
-```bash
-gunzip -c backup-2026-05-01.sql.gz | \
-  docker compose exec -T db \
-  sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
-```
+Restore targets must be empty. See [migration and rollback](external-postgres.md)
+for existing volumes and legacy SQL backups.
 
 ## 6. Updating
 
